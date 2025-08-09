@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Gamified Lesson</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">Gamified Lesson</div>
+    <div class="stats">
+      <div id="stat-coins" class="pill">Coins: 0</div>
+      <div id="stat-xp" class="pill">XP: 0</div>
+    </div>
+  </header>
+
+  <nav class="tabs">
+    <button id="tab-lessons" class="tab active">Lessons</button>
+    <button id="tab-shop" class="tab">Shop</button>
+    <button id="tab-daily" class="tab">Daily</button>
+  </nav>
+
+  <main id="view" class="view"></main>
+
+  <div id="toast" class="toast" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
