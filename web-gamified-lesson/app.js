@@ -44,16 +44,21 @@ const Shop = [
   { id: 'theme_sunset', name: 'Theme: Sunset', type: 'theme', price: 80, data: { accent: '#ff8fab' } },
   { id: 'confetti', name: 'Confetti Celebrations', type: 'effect', price: 120, data: {} },
   { id: 'sfx_beep', name: 'Answer SFX (Beep)', type: 'sfx', price: 60, data: {} },
+  { id: 'trail_neon', name: 'Player Trail', type: 'trail', price: 140, data: { color: '#00f5d4' } },
 ];
 
 // Profile persistence
 const STORAGE_KEY = 'gl_profile_v1';
 const DEFAULT_PROFILE = {
+  name: 'Player',
   coins: 0,
   xp: 0,
   owned: {},
   daily: { lastClaim: 0, streak: 0 },
   lessons: {}, // { [lessonId]: { bestScore: number } }
+  settings: { sfxEnabled: true, confettiEnabled: true, difficulty: 'normal' },
+  achievements: {}, // { id: true }
+  leaderboard: [], // [{ ts, lessonId, correct }]
 };
 
 let profile = loadProfile();
@@ -135,7 +140,7 @@ function toast(msg) {
 }
 
 function playBeep(good = true) {
-  if (!profile.owned['sfx_beep']) return;
+  if (!profile.settings.sfxEnabled) return;
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
     const o = ctx.createOscillator();
@@ -153,7 +158,7 @@ function playBeep(good = true) {
 }
 
 function confettiBurst() {
-  if (!profile.owned['confetti']) return;
+  if (!profile.settings.confettiEnabled && !profile.owned['confetti']) return;
   const container = CE('div', { class: 'confetti' });
   const colors = ['#ffd166', '#06d6a0', '#118ab2', '#ef476f', '#8338ec'];
   const pieces = 60;
@@ -186,9 +191,15 @@ const tabs = {
   lessons: EL('#tab-lessons'),
   shop: EL('#tab-shop'),
   daily: EL('#tab-daily'),
+  stats: EL('#tab-stats'),
+  settings: EL('#tab-settings'),
 };
 
+function levelFromXP(xp){ return Math.max(1, Math.floor(Math.sqrt(xp/50))+1); }
+function levelProgress(xp){ const lvl = levelFromXP(xp); const prev = (lvl-1)*(lvl-1)*50; const next = (lvl)*(lvl)*50; return { lvl, pct: Math.max(0, Math.min(1, (xp - prev) / (next - prev))) } }
 function refreshStats() {
+  const { lvl, pct } = levelProgress(profile.xp|0);
+  EL('#stat-level').textContent = `Lv ${lvl}`;
   EL('#stat-coins').textContent = `Coins: ${profile.coins|0}`;
   EL('#stat-xp').textContent = `XP: ${profile.xp|0}`;
 }
@@ -313,7 +324,7 @@ function renderShop() {
   const header = CE('div', { class: 'row' }, [
     CE('h2', { text: 'Shop' }),
     CE('div', { class: 'space' }),
-    CE('span', { class: 'badge', text: 'Cosmetics only' })
+    CE('span', { class: 'badge', text: 'Cosmetics & effects' })
   ]);
   view.appendChild(header);
 
@@ -337,9 +348,12 @@ function purchaseOrUse(item) {
   const owned = !!profile.owned[item.id];
   if (!owned) {
     if ((profile.coins|0) < item.price) { toast('Not enough coins'); return; }
+    const before = profile.coins|0;
     profile.coins -= item.price;
     profile.owned[item.id] = true;
     saveProfile();
+    const spent = before - (profile.coins|0);
+    if (spent >= 200) unlockAchievement('spender');
     toast(`Purchased ${item.name}`);
   }
   applyItem(item);
@@ -379,8 +393,113 @@ function renderDaily() {
   view.appendChild(card);
 }
 
+// Achievements
+const ACHIEVEMENTS = [
+  { id: 'first_win', name: 'First Steps', desc: 'Complete any lesson once.' },
+  { id: 'perfect_10', name: 'Perfectionist', desc: 'Finish a lesson with all answers correct.' },
+  { id: 'streak_3', name: 'Daily Devotee', desc: 'Reach a daily streak of 3.' },
+  { id: 'spender', name: 'Big Spender', desc: 'Spend 200 coins in the shop.' },
+];
+function unlockAchievement(id) {
+  if (profile.achievements[id]) return;
+  profile.achievements[id] = true;
+  saveProfile();
+  toast('Achievement unlocked: ' + (ACHIEVEMENTS.find(a=>a.id===id)?.name || id));
+}
+
+// Stats view
+function renderStats() {
+  setActiveTab('stats');
+  view.innerHTML = '';
+
+  // XP / Level card
+  const { lvl, pct } = levelProgress(profile.xp|0);
+  const xpCard = CE('div', { class: 'card' }, [
+    CE('h3', { text: 'Profile' }),
+    CE('div', { class: 'kv' }, [
+      CE('div', { text: 'Name' }), CE('div', { text: profile.name }),
+      CE('div', { text: 'Level' }), CE('div', { text: String(lvl) }),
+      CE('div', { text: 'XP' }), CE('div', { text: String(profile.xp|0) }),
+      CE('div', { text: 'Coins' }), CE('div', { text: String(profile.coins|0) }),
+    ]),
+    CE('div', { class: 'xpbar' }, [ CE('div', { class: 'fill', style: `width:${(pct*100)|0}%` }) ])
+  ]);
+  view.appendChild(xpCard);
+
+  // Lessons best
+  const bestCard = CE('div', { class: 'card' }, [ CE('h3', { text: 'Best Scores' }) ]);
+  const grid = CE('div', { class: 'grid' });
+  QuestionBank.forEach(lesson => {
+    const best = profile.lessons?.[lesson.id]?.bestScore || 0;
+    grid.appendChild(CE('div', { class: 'stat' }, [
+      CE('div', { class: 'row' }, [ CE('strong', { text: lesson.title }), CE('div', { class: 'space' }), CE('span', { class: 'badge', text: `${best}/${lesson.questions.length}` }) ])
+    ]));
+  });
+  bestCard.appendChild(grid);
+  view.appendChild(bestCard);
+
+  // Achievements
+  const achCard = CE('div', { class: 'card' }, [ CE('h3', { text: 'Achievements' }) ]);
+  const agr = CE('div', { class: 'grid' });
+  ACHIEVEMENTS.forEach(a => {
+    const unlocked = !!profile.achievements[a.id];
+    agr.appendChild(CE('div', { class: 'stat' }, [
+      CE('div', { class: 'row' }, [ CE('strong', { text: a.name }), CE('div', { class: 'space' }), CE('span', { class: 'badge', text: unlocked ? 'Unlocked' : 'Locked' }) ]),
+      CE('p', { text: a.desc })
+    ]));
+  });
+  achCard.appendChild(agr);
+  view.appendChild(achCard);
+
+  // Leaderboard
+  const lbCard = CE('div', { class: 'card' }, [ CE('h3', { text: 'Local Leaderboard' }) ]);
+  const list = CE('div', { class: 'grid' });
+  (profile.leaderboard || []).slice(0, 10).forEach(row => {
+    const title = QuestionBank.find(l=>l.id===row.lessonId)?.title || row.lessonId;
+    list.appendChild(CE('div', { class: 'stat' }, [
+      CE('div', { text: `${title}` }),
+      CE('div', { class: 'row' }, [ CE('span', { class: 'badge', text: new Date(row.ts).toLocaleString() }), CE('div', { class: 'space' }), CE('span', { class: 'badge', text: `${row.correct} correct` }) ])
+    ]));
+  });
+  lbCard.appendChild(list);
+  view.appendChild(lbCard);
+}
+
+// Settings view
+function renderSettings() {
+  setActiveTab('settings');
+  view.innerHTML = '';
+
+  const card = CE('div', { class: 'card' }, [ CE('h3', { text: 'Settings' }) ]);
+
+  const form = CE('div', { class: 'form' });
+  const nameField = CE('div', { class: 'field' }, [ CE('label', { text: 'Display Name' }), CE('input', { type: 'text', value: profile.name }) ]);
+  const diffField = CE('div', { class: 'field' }, [ CE('label', { text: 'Difficulty' }), (function(){
+    const sel = CE('select');
+    ['easy','normal','hard'].forEach(v=> sel.appendChild(CE('option', { value: v, text: v, ...(v===profile.settings.difficulty?{selected:''}:{}) })));
+    return sel;
+  })() ]);
+  const sfxField = CE('div', { class: 'field' }, [ CE('label', { text: 'Sound Effects' }), CE('label', { class: 'switch' }, [ CE('input', { type: 'checkbox', ...(profile.settings.sfxEnabled?{checked:''}:{}) }), CE('span', { text: profile.settings.sfxEnabled? 'On':'Off' }) ]) ]);
+  const confField = CE('div', { class: 'field' }, [ CE('label', { text: 'Confetti' }), CE('label', { class: 'switch' }, [ CE('input', { type: 'checkbox', ...(profile.settings.confettiEnabled?{checked:''}:{}) }), CE('span', { text: profile.settings.confettiEnabled? 'On':'Off' }) ]) ]);
+
+  const row = CE('div', { class: 'row' }, [ CE('button', { class: 'btn primary', text: 'Save', onclick: () => {
+    profile.name = nameField.querySelector('input').value.slice(0, 20) || 'Player';
+    profile.settings.difficulty = diffField.querySelector('select').value;
+    profile.settings.sfxEnabled = sfxField.querySelector('input').checked;
+    profile.settings.confettiEnabled = confField.querySelector('input').checked;
+    saveProfile(); toast('Settings saved');
+  }}), CE('div', { class: 'space' }), CE('button', { class: 'btn danger', text: 'Reset Data', onclick: () => {
+    if (confirm('Reset all local data?')) { localStorage.clear(); profile = structuredClone(DEFAULT_PROFILE); saveProfile(); renderLessons(); }
+  }}) ]);
+
+  form.append(nameField, diffField, sfxField, confField, row);
+  card.appendChild(form);
+  view.appendChild(card);
+}
+
 // Game Mode
-function startGameMode(lesson) {
+const _origStartGameMode = startGameMode;
+startGameMode = function(lesson){
   view.innerHTML = '';
   const wrap = CE('div', { class: 'game-wrap card' });
   const canvas = CE('canvas', { class: 'game-canvas' });
@@ -390,12 +509,13 @@ function startGameMode(lesson) {
   for (let i = 0; i < lives; i++) livesEl.appendChild(CE('div', { class: 'heart' }));
   const timerEl = CE('div', { class: 'timer', text: 'Time: 60' });
   hud.append(livesEl, timerEl);
+  const pauseBtn = CE('button', { class: 'btn game-pause', text: 'Pause' });
 
   const overlay = CE('div', { class: 'game-overlay' });
   const panel = CE('div', { class: 'panel' });
   overlay.appendChild(panel);
 
-  wrap.append(canvas, hud, overlay);
+  wrap.append(canvas, hud, pauseBtn, overlay);
   view.appendChild(wrap);
 
   const ctx = canvas.getContext('2d');
@@ -405,214 +525,267 @@ function startGameMode(lesson) {
     dpi = window.devicePixelRatio || 1;
     width = Math.floor(rect.width * dpi);
     height = Math.floor(rect.height * dpi);
-    canvas.width = width;
-    canvas.height = height;
+    canvas.width = width; canvas.height = height;
   }
-  resize();
-  window.addEventListener('resize', resize);
+  resize(); window.addEventListener('resize', resize);
+
+  // Difficulty
+  const diff = profile.settings.difficulty || 'normal';
+  const DIFF = {
+    easy:   { time: 70, enemies: 3, enemySpeed: 90, playerSpeed: 240 },
+    normal: { time: 60, enemies: 4, enemySpeed: 115, playerSpeed: 220 },
+    hard:   { time: 50, enemies: 5, enemySpeed: 140, playerSpeed: 220 },
+  }[diff];
 
   // Game state
-  let timeLeft = 60; // seconds
-  let running = true;
+  let timeLeft = DIFF.time;
+  let running = true, paused = false;
   let last = performance.now();
   let questionIndex = 0;
   let currentQ = lesson.questions[questionIndex];
-  let pickups = []; // answers placed in world
-  let enemies = [];
+  let pickups = []; // answers
+  let enemies = []; // mix of bouncers and chasers
+  let obstacles = [];
+  let powerups = [];
   let scoreCorrect = 0;
+  let shieldUntil = 0; let slowUntil = 0;
+  const posTrail = [];
 
-  const player = { x: width * 0.5, y: height * 0.5, r: 14, speed: 220 * (dpi), vx: 0, vy: 0 };
+  const player = { x: width*0.5, y: height*0.5, r: 14, speed: DIFF.playerSpeed * dpi, vx: 0, vy: 0 };
   const keys = new Set();
-  window.addEventListener('keydown', e => keys.add(e.key.toLowerCase()));
+  window.addEventListener('keydown', e => { const k = e.key.toLowerCase(); keys.add(k); if (k==='escape'){ togglePause(); }});
   window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+
+  // Touch / pointer movement toward pointer
+  let pointerActive = false, pointer = { x: 0, y: 0 };
+  canvas.addEventListener('pointerdown', e => { pointerActive = true; const r = canvas.getBoundingClientRect(); pointer.x = (e.clientX - r.left) * (window.devicePixelRatio||1); pointer.y = (e.clientY - r.top) * (window.devicePixelRatio||1); });
+  canvas.addEventListener('pointermove', e => { if (!pointerActive) return; const r = canvas.getBoundingClientRect(); pointer.x = (e.clientX - r.left) * (window.devicePixelRatio||1); pointer.y = (e.clientY - r.top) * (window.devicePixelRatio||1); });
+  window.addEventListener('pointerup', ()=> pointerActive = false);
+
+  function togglePause(){ paused = !paused; overlay.style.display = paused? 'grid':'none'; panel.innerHTML = ''; panel.append(
+    CE('h3', { text: paused? 'Paused':'Resumed' }),
+    CE('div', { class: 'row' }, [
+      CE('button', { class: 'btn', text: 'Back to Lessons', onclick: renderLessons }),
+      CE('div', { class: 'space' }),
+      CE('button', { class: 'btn primary', text: 'Resume', onclick: togglePause })
+    ])
+  ); }
+  pauseBtn.addEventListener('click', togglePause);
+
+  function placeObstacles(n=4){
+    obstacles = [];
+    for (let i=0;i<n;i++){
+      const w = 120*dpi + Math.random()*100*dpi;
+      const h = 20*dpi + Math.random()*100*dpi;
+      const x = 40*dpi + Math.random()*(width - w - 80*dpi);
+      const y = 40*dpi + Math.random()*(height - h - 80*dpi);
+      obstacles.push({x,y,w,h});
+    }
+  }
 
   function spawnQuestionPickups() {
     pickups = [];
-    const indices = currentQ.answers.map((_, i) => i);
-    // place answers in corners-ish
     const spots = [
       { x: width * 0.2, y: height * 0.2 },
       { x: width * 0.8, y: height * 0.2 },
       { x: width * 0.2, y: height * 0.8 },
       { x: width * 0.8, y: height * 0.8 },
     ];
-    indices.forEach((i, idx) => {
-      pickups.push({ x: spots[idx].x, y: spots[idx].y, r: 16, i, text: currentQ.answers[i] });
+    currentQ.answers.forEach((_, idx) => {
+      pickups.push({ x: spots[idx].x, y: spots[idx].y, r: 16, i: idx });
     });
   }
 
-  function spawnEnemies(n = 3) {
+  function spawnEnemies(base = DIFF.enemies) {
     enemies = [];
-    for (let i = 0; i < n; i++) {
+    for (let i = 0; i < base; i++) {
+      const chaser = Math.random() < 0.35;
       enemies.push({
         x: Math.random() * width,
         y: Math.random() * height,
         r: 12,
-        vx: (Math.random() * 2 - 1) * 100 * dpi,
-        vy: (Math.random() * 2 - 1) * 100 * dpi,
+        vx: (Math.random() * 2 - 1) * DIFF.enemySpeed * dpi,
+        vy: (Math.random() * 2 - 1) * DIFF.enemySpeed * dpi,
+        chaser,
       });
     }
   }
 
-  function resetLevel() {
+  function spawnPowerup(){
+    const types = ['shield','slow','time','coins'];
+    const type = types[(Math.random()*types.length)|0];
+    powerups.push({ type, x: 30*dpi + Math.random()*(width-60*dpi), y: 30*dpi + Math.random()*(height-60*dpi), r: 12 });
+  }
+
+  function resetLevel(){
     currentQ = lesson.questions[questionIndex];
-    player.x = width * 0.5; player.y = height * 0.5; player.vx = 0; player.vy = 0;
+    player.x = width*0.5; player.y = height*0.5; player.vx=player.vy=0;
+    placeObstacles(4);
     spawnQuestionPickups();
-    spawnEnemies(3 + Math.min(questionIndex, 3));
+    spawnEnemies(DIFF.enemies + Math.min(questionIndex, 3));
+    powerups = [];
   }
 
-  function circleHit(a, b) {
-    const dx = a.x - b.x, dy = a.y - b.y;
-    const rr = (a.r + b.r);
-    return dx * dx + dy * dy <= rr * rr;
+  function circleHit(a, b){ const dx=a.x-b.x, dy=a.y-b.y; const rr=a.r+b.r; return dx*dx+dy*dy <= rr*rr; }
+  function rectHitCircle(rect, c){
+    const cx = Math.max(rect.x, Math.min(c.x, rect.x+rect.w));
+    const cy = Math.max(rect.y, Math.min(c.y, rect.y+rect.h));
+    const dx = c.x - cx, dy = c.y - cy; return dx*dx + dy*dy <= c.r*c.r;
   }
 
-  function update(dt) {
-    // Timer
+  let powerupTimer = 0;
+  function update(dt){
+    if (!running || paused) return;
     timeLeft -= dt;
-    if (timeLeft <= 0) {
-      timeLeft = 0; running = false; endGame('Time up!');
-    }
+    if (timeLeft <= 0){ timeLeft=0; running=false; return endGame('Time up!'); }
     timerEl.textContent = 'Time: ' + Math.ceil(timeLeft);
 
-    // Input
-    const accel = player.speed * dt;
-    const up = keys.has('w') || keys.has('arrowup');
-    const down = keys.has('s') || keys.has('arrowdown');
-    const left = keys.has('a') || keys.has('arrowleft');
-    const right = keys.has('d') || keys.has('arrowright');
-    let ax = (right ? 1 : 0) - (left ? 1 : 0);
-    let ay = (down ? 1 : 0) - (up ? 1 : 0);
-    const len = Math.hypot(ax, ay) || 1;
-    ax /= len; ay /= len;
-    player.vx = ax * player.speed; player.vy = ay * player.speed;
+    // Input: keyboard or pointer
+    let ax=0, ay=0;
+    const up = keys.has('w')||keys.has('arrowup');
+    const down = keys.has('s')||keys.has('arrowdown');
+    const left = keys.has('a')||keys.has('arrowleft');
+    const right = keys.has('d')||keys.has('arrowright');
+    if (up||down||left||right){ ax = (right?1:0)-(left?1:0); ay = (down?1:0)-(up?1:0); const len=Math.hypot(ax,ay)||1; ax/=len; ay/=len; }
+    else if (pointerActive){ const dx=pointer.x-player.x, dy=pointer.y-player.y; const len=Math.hypot(dx,dy)||1; ax=dx/len; ay=dy/len; }
+    const speed = player.speed * (slowUntil>performance.now()?0.6:1);
+    player.vx = ax*speed; player.vy=ay*speed;
 
-    player.x += player.vx * dt; player.y += player.vy * dt;
-    player.x = Math.max(player.r, Math.min(width - player.r, player.x));
-    player.y = Math.max(player.r, Math.min(height - player.r, player.y));
+    // Move with obstacle collision (simple push out)
+    player.x += player.vx*dt; player.y += player.vy*dt;
+    player.x = Math.max(player.r, Math.min(width-player.r, player.x));
+    player.y = Math.max(player.r, Math.min(height-player.r, player.y));
+    obstacles.forEach(o=>{ if (rectHitCircle(o, player)){ // push out along smallest axis
+      const leftPen = Math.abs(player.x - o.x) + player.r;
+      const rightPen = Math.abs((o.x+o.w) - player.x) + player.r;
+      const topPen = Math.abs(player.y - o.y) + player.r;
+      const botPen = Math.abs((o.y+o.h) - player.y) + player.r;
+      const minPen = Math.min(leftPen,rightPen,topPen,botPen);
+      if (minPen===leftPen) player.x = o.x - player.r; else if (minPen===rightPen) player.x = o.x+o.w + player.r; else if (minPen===topPen) player.y = o.y - player.r; else player.y = o.y+o.h + player.r;
+    }});
 
-    // Enemies bounce
-    enemies.forEach(e => {
-      e.x += e.vx * dt; e.y += e.vy * dt;
-      if (e.x < e.r || e.x > width - e.r) e.vx *= -1;
-      if (e.y < e.r || e.y > height - e.r) e.vy *= -1;
+    // Enemies
+    enemies.forEach(e=>{
+      if (e.chaser){ const dx = player.x-e.x, dy=player.y-e.y; const len=Math.hypot(dx,dy)||1; const s=DIFF.enemySpeed*dpi*0.9; e.vx = dx/len*s; e.vy = dy/len*s; }
+      e.x += e.vx*dt; e.y += e.vy*dt;
+      if (e.x<e.r||e.x>width-e.r) e.vx*=-1; if (e.y<e.r||e.y>height-e.r) e.vy*=-1;
+      obstacles.forEach(o=>{ if (rectHitCircle(o, e)){ e.vx*=-1; e.vy*=-1; }});
       if (circleHit(player, e)) damage();
     });
 
-    // Pickup
-    for (let i = pickups.length - 1; i >= 0; i--) {
-      if (circleHit(player, pickups[i])) {
-        const correct = pickups[i].i === currentQ.correctIndex;
-        pickups.splice(i, 1);
-        handleAnswer(correct);
-        break;
-      }
+    // Powerups spawn
+    powerupTimer += dt; if (powerupTimer > 7){ powerupTimer = 0; if (powerups.length<3) spawnPowerup(); }
+
+    // Pickups
+    for (let i=pickups.length-1;i>=0;i--){ if (circleHit(player, pickups[i])){ const correct = pickups[i].i===currentQ.correctIndex; pickups.splice(i,1); handleAnswer(correct); break; }}
+
+    // Powerups collect
+    for (let i=powerups.length-1;i>=0;i--){ if (circleHit(player, powerups[i])){
+      const p = powerups.splice(i,1)[0];
+      if (p.type==='shield'){ shieldUntil = performance.now()+4000; toast('Shield!'); }
+      if (p.type==='slow'){ slowUntil = performance.now()+4000; toast('Slow-mo!'); }
+      if (p.type==='time'){ timeLeft += 8; toast('+Time'); }
+      if (p.type==='coins'){ addCoins(20); toast('+20 coins'); }
+    }}
+
+    // Trail
+    if (profile.owned['trail_neon']){
+      posTrail.push({ x: player.x, y: player.y, t: performance.now() });
+      while (posTrail.length>60) posTrail.shift();
     }
   }
 
-  function damage() {
-    // debounce small invuln
-    if (damage._inv) return; damage._inv = true; setTimeout(() => damage._inv = false, 800);
-    lives = Math.max(0, lives - 1);
+  function damage(){
+    if (performance.now() < shieldUntil) return;
+    if (damage._inv) return; damage._inv=true; setTimeout(()=>damage._inv=false, 800);
+    lives = Math.max(0, lives-1);
     while (livesEl.firstChild) livesEl.removeChild(livesEl.firstChild);
-    for (let i = 0; i < lives; i++) livesEl.appendChild(CE('div', { class: 'heart' }));
-    if (lives <= 0) { running = false; endGame('Out of lives!'); }
+    for (let i=0;i<lives;i++) livesEl.appendChild(CE('div', { class: 'heart' }));
+    if (lives<=0){ running=false; endGame('Out of lives!'); }
   }
 
-  function handleAnswer(isCorrect) {
+  function handleAnswer(isCorrect){
     playBeep(isCorrect);
     awardForAnswer(isCorrect);
-    if (isCorrect) {
+    if (isCorrect){
       scoreCorrect += 1;
-      if (questionIndex === lesson.questions.length - 1) {
-        // finish
+      if (questionIndex === lesson.questions.length-1){
         awardForLessonCompletion();
         profile.lessons[lesson.id] = profile.lessons[lesson.id] || { bestScore: 0 };
         profile.lessons[lesson.id].bestScore = Math.max(profile.lessons[lesson.id].bestScore, scoreCorrect);
         saveProfile();
-        if (profile.owned['confetti']) confettiBurst();
-        running = false; endGame('Lesson complete!');
-      } else {
-        questionIndex += 1;
-        resetLevel();
-      }
-    } else {
-      // wrong answer: small penalty
-      damage();
-      toast('Wrong answer');
-    }
+        if (profile.owned['confetti'] || profile.settings.confettiEnabled) confettiBurst();
+        unlockAchievement('first_win');
+        if (scoreCorrect === lesson.questions.length) unlockAchievement('perfect_10');
+        running=false; endGame('Lesson complete!');
+      } else { questionIndex += 1; resetLevel(); }
+    } else { damage(); toast('Wrong answer'); }
   }
 
-  function render() {
-    ctx.clearRect(0, 0, width, height);
+  function render(){
+    ctx.clearRect(0,0,width,height);
 
     // Background grid
-    ctx.save();
-    ctx.globalAlpha = 0.2;
-    ctx.strokeStyle = 'rgba(255,255,255,.05)';
-    const step = 40 * dpi;
-    for (let x = 0; x < width; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
-    for (let y = 0; y < height; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+    ctx.save(); ctx.globalAlpha=.2; ctx.strokeStyle='rgba(255,255,255,.05)'; const step=40*dpi;
+    for (let x=0;x<width;x+=step){ ctx.beginPath(); ctx.moveTo(x,0); ctx.lineTo(x,height); ctx.stroke(); }
+    for (let y=0;y<height;y+=step){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(width,y); ctx.stroke(); }
     ctx.restore();
+
+    // Obstacles
+    obstacles.forEach(o=>{ ctx.fillStyle='rgba(255,255,255,.06)'; ctx.fillRect(o.x,o.y,o.w,o.h); ctx.strokeStyle='rgba(255,255,255,.12)'; ctx.strokeRect(o.x,o.y,o.w,o.h); });
+
+    // Trail
+    if (profile.owned['trail_neon']){
+      ctx.save(); ctx.globalAlpha = .6; ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#00f5d4';
+      for (let i=0;i<posTrail.length;i+=3){ const p=posTrail[i]; ctx.beginPath(); ctx.arc(p.x,p.y,6,0,Math.PI*2); ctx.fill(); }
+      ctx.restore();
+    }
 
     // Player
     ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#7c5cff';
-    ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI*2); ctx.fill();
+    if (performance.now() < shieldUntil){ ctx.strokeStyle = '#1dd1a1'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(player.x, player.y, player.r+4, 0, Math.PI*2); ctx.stroke(); }
 
     // Enemies
-    enemies.forEach(e => {
-      ctx.fillStyle = 'rgba(255,107,107,.9)';
-      ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fill();
+    enemies.forEach(e=>{ ctx.fillStyle='rgba(255,107,107,.9)'; ctx.beginPath(); ctx.arc(e.x,e.y,e.r,0,Math.PI*2); ctx.fill(); });
+
+    // Pickups
+    ctx.font = `${14*dpi}px Inter, system-ui`; ctx.textAlign='center'; ctx.textBaseline='middle';
+    pickups.forEach(p=>{ ctx.fillStyle='rgba(0,0,0,.35)'; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); ctx.strokeStyle='rgba(255,255,255,.15)'; ctx.lineWidth=2; ctx.stroke();
+      const t = currentQ.answers[p.i]; const txt = t.length>12? t.slice(0,12)+'…': t; ctx.fillStyle='white'; ctx.fillText(txt,p.x,p.y);
     });
 
-    // Pickups (answers)
-    ctx.font = `${14 * dpi}px Inter, system-ui`;
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    pickups.forEach(p => {
-      ctx.fillStyle = 'rgba(0,0,0,.35)';
-      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 2; ctx.stroke();
-      ctx.fillStyle = 'white';
-      const t = currentQ.answers[p.i];
-      const txt = t.length > 12 ? t.slice(0, 12) + '…' : t;
-      ctx.fillText(txt, p.x, p.y);
-    });
+    // Powerups
+    powerups.forEach(p=>{ ctx.fillStyle = ({shield:'#1dd1a1',slow:'#74b9ff',time:'#ffeaa7',coins:'#ffd166'})[p.type]; ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fill(); });
   }
 
-  function loop(now) {
-    if (!running) return;
-    const dt = Math.max(0, Math.min(0.033, (now - last) / 1000));
-    last = now;
-    update(dt);
-    render();
-    requestAnimationFrame(loop);
+  function loop(now){
+    const dt = Math.max(0, Math.min(0.033, (now - last)/1000)); last = now;
+    update(dt); render();
+    if (running) requestAnimationFrame(loop);
   }
 
-  function endGame(message) {
-    overlay.innerHTML = '';
+  function endGame(message){
+    overlay.innerHTML='';
+    profile.leaderboard.unshift({ ts: Date.now(), lessonId: lesson.id, correct: scoreCorrect });
+    profile.leaderboard = profile.leaderboard.slice(0, 20);
+    saveProfile();
     const btns = CE('div', { class: 'row' }, [
       CE('button', { class: 'btn', text: 'Back to Lessons', onclick: renderLessons }),
       CE('div', { class: 'space' }),
       CE('button', { class: 'btn primary', text: 'Play Again', onclick: () => startGameMode(lesson) }),
     ]);
-    panel.innerHTML = '';
-    panel.append(
-      CE('h3', { text: message }),
-      CE('p', { text: `Correct: ${scoreCorrect}/${lesson.questions.length}` }),
-      btns
-    );
-    overlay.style.display = 'grid';
+    panel.innerHTML=''; panel.append(CE('h3', { text: message }), CE('p', { text: `Correct: ${scoreCorrect}/${lesson.questions.length}` }), btns);
+    overlay.style.display='grid';
   }
 
   // init
-  overlay.style.display = 'none';
+  overlay.style.display='none';
   resetLevel();
-  (function tick() {
-    requestAnimationFrame(tick);
-  })();
-  requestAnimationFrame(t => { last = t; loop(t); });
-}
+  requestAnimationFrame(t=>{ last=t; loop(t); });
+  // Daily achievement check
+  if ((profile.daily.streak||0) >= 3) unlockAchievement('streak_3');
+};
 
 // Initial theme if owned
 (function initTheme() {
@@ -624,6 +797,8 @@ function startGameMode(lesson) {
 EL('#tab-lessons').addEventListener('click', renderLessons);
 EL('#tab-shop').addEventListener('click', renderShop);
 EL('#tab-daily').addEventListener('click', renderDaily);
+EL('#tab-stats').addEventListener('click', renderStats);
+EL('#tab-settings').addEventListener('click', renderSettings);
 
 // Initial view
 renderLessons();

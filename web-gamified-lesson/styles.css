@@ -137,3 +137,36 @@ body {
 @media (max-width: 720px) {
   .game-wrap { height: 50vh; }
 }
+
+/* Modal */
+.modal { position: fixed; inset: 0; background: rgba(0,0,0,.5); display: grid; place-items: center; z-index: 20; }
+.modal.hidden { display: none; }
+.modal-panel { width: min(720px, 92vw); background: var(--card); border: 1px solid rgba(255,255,255,.1); border-radius: 14px; padding: 16px; }
+.modal-head { display: flex; align-items: center; gap: 10px; }
+.modal-head h3 { margin: 0; }
+.modal-body { margin-top: 10px; }
+
+/* Forms */
+.form { display: grid; gap: 10px; }
+.form .field { display: grid; gap: 6px; }
+input[type="text"], select, .switch {
+  background: var(--card-2);
+  color: var(--text);
+  border: 1px solid rgba(255,255,255,.15);
+  border-radius: 10px; padding: 10px 12px;
+}
+.switch { display: inline-flex; gap: 8px; align-items: center; padding: 8px 10px; }
+
+/* Stats */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.stat { background: var(--card); border: 1px solid rgba(255,255,255,.08); border-radius: 12px; padding: 12px; }
+
+/* XP bar */
+.xpbar { height: 10px; width: 100%; background: rgba(255,255,255,.08); border-radius: 999px; overflow: hidden; }
+.xpbar .fill { height: 100%; background: linear-gradient(90deg, var(--accent), #6e8bff); width: 0%; transition: width .3s ease; }
+
+/* Pause btn */
+.game-pause { position: absolute; right: 12px; top: 12px; z-index: 3; }
+
+/* Touch hint */
+.touch-hint { position: absolute; bottom: 12px; left: 12px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.1); color: var(--muted); padding: 6px 8px; border-radius: 8px; }
