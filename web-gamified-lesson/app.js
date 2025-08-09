@@ -220,7 +220,8 @@ function renderLessons() {
       ]),
       CE('p', { text: lesson.description }),
       CE('div', { class: 'row' }, [
-        CE('button', { class: 'btn primary', text: 'Start', onclick: () => startLesson(lesson) })
+        CE('button', { class: 'btn primary', text: 'Start', onclick: () => startLesson(lesson) }),
+        CE('button', { class: 'btn ghost', text: 'Play Mode', onclick: () => startGameMode(lesson) })
       ])
     ]);
     view.appendChild(card);
@@ -376,6 +377,241 @@ function renderDaily() {
   card.appendChild(row);
 
   view.appendChild(card);
+}
+
+// Game Mode
+function startGameMode(lesson) {
+  view.innerHTML = '';
+  const wrap = CE('div', { class: 'game-wrap card' });
+  const canvas = CE('canvas', { class: 'game-canvas' });
+  const hud = CE('div', { class: 'hud-float' });
+  const livesEl = CE('div', { class: 'row' });
+  let lives = 3;
+  for (let i = 0; i < lives; i++) livesEl.appendChild(CE('div', { class: 'heart' }));
+  const timerEl = CE('div', { class: 'timer', text: 'Time: 60' });
+  hud.append(livesEl, timerEl);
+
+  const overlay = CE('div', { class: 'game-overlay' });
+  const panel = CE('div', { class: 'panel' });
+  overlay.appendChild(panel);
+
+  wrap.append(canvas, hud, overlay);
+  view.appendChild(wrap);
+
+  const ctx = canvas.getContext('2d');
+  let width, height, dpi;
+  function resize() {
+    const rect = canvas.getBoundingClientRect();
+    dpi = window.devicePixelRatio || 1;
+    width = Math.floor(rect.width * dpi);
+    height = Math.floor(rect.height * dpi);
+    canvas.width = width;
+    canvas.height = height;
+  }
+  resize();
+  window.addEventListener('resize', resize);
+
+  // Game state
+  let timeLeft = 60; // seconds
+  let running = true;
+  let last = performance.now();
+  let questionIndex = 0;
+  let currentQ = lesson.questions[questionIndex];
+  let pickups = []; // answers placed in world
+  let enemies = [];
+  let scoreCorrect = 0;
+
+  const player = { x: width * 0.5, y: height * 0.5, r: 14, speed: 220 * (dpi), vx: 0, vy: 0 };
+  const keys = new Set();
+  window.addEventListener('keydown', e => keys.add(e.key.toLowerCase()));
+  window.addEventListener('keyup', e => keys.delete(e.key.toLowerCase()));
+
+  function spawnQuestionPickups() {
+    pickups = [];
+    const indices = currentQ.answers.map((_, i) => i);
+    // place answers in corners-ish
+    const spots = [
+      { x: width * 0.2, y: height * 0.2 },
+      { x: width * 0.8, y: height * 0.2 },
+      { x: width * 0.2, y: height * 0.8 },
+      { x: width * 0.8, y: height * 0.8 },
+    ];
+    indices.forEach((i, idx) => {
+      pickups.push({ x: spots[idx].x, y: spots[idx].y, r: 16, i, text: currentQ.answers[i] });
+    });
+  }
+
+  function spawnEnemies(n = 3) {
+    enemies = [];
+    for (let i = 0; i < n; i++) {
+      enemies.push({
+        x: Math.random() * width,
+        y: Math.random() * height,
+        r: 12,
+        vx: (Math.random() * 2 - 1) * 100 * dpi,
+        vy: (Math.random() * 2 - 1) * 100 * dpi,
+      });
+    }
+  }
+
+  function resetLevel() {
+    currentQ = lesson.questions[questionIndex];
+    player.x = width * 0.5; player.y = height * 0.5; player.vx = 0; player.vy = 0;
+    spawnQuestionPickups();
+    spawnEnemies(3 + Math.min(questionIndex, 3));
+  }
+
+  function circleHit(a, b) {
+    const dx = a.x - b.x, dy = a.y - b.y;
+    const rr = (a.r + b.r);
+    return dx * dx + dy * dy <= rr * rr;
+  }
+
+  function update(dt) {
+    // Timer
+    timeLeft -= dt;
+    if (timeLeft <= 0) {
+      timeLeft = 0; running = false; endGame('Time up!');
+    }
+    timerEl.textContent = 'Time: ' + Math.ceil(timeLeft);
+
+    // Input
+    const accel = player.speed * dt;
+    const up = keys.has('w') || keys.has('arrowup');
+    const down = keys.has('s') || keys.has('arrowdown');
+    const left = keys.has('a') || keys.has('arrowleft');
+    const right = keys.has('d') || keys.has('arrowright');
+    let ax = (right ? 1 : 0) - (left ? 1 : 0);
+    let ay = (down ? 1 : 0) - (up ? 1 : 0);
+    const len = Math.hypot(ax, ay) || 1;
+    ax /= len; ay /= len;
+    player.vx = ax * player.speed; player.vy = ay * player.speed;
+
+    player.x += player.vx * dt; player.y += player.vy * dt;
+    player.x = Math.max(player.r, Math.min(width - player.r, player.x));
+    player.y = Math.max(player.r, Math.min(height - player.r, player.y));
+
+    // Enemies bounce
+    enemies.forEach(e => {
+      e.x += e.vx * dt; e.y += e.vy * dt;
+      if (e.x < e.r || e.x > width - e.r) e.vx *= -1;
+      if (e.y < e.r || e.y > height - e.r) e.vy *= -1;
+      if (circleHit(player, e)) damage();
+    });
+
+    // Pickup
+    for (let i = pickups.length - 1; i >= 0; i--) {
+      if (circleHit(player, pickups[i])) {
+        const correct = pickups[i].i === currentQ.correctIndex;
+        pickups.splice(i, 1);
+        handleAnswer(correct);
+        break;
+      }
+    }
+  }
+
+  function damage() {
+    // debounce small invuln
+    if (damage._inv) return; damage._inv = true; setTimeout(() => damage._inv = false, 800);
+    lives = Math.max(0, lives - 1);
+    while (livesEl.firstChild) livesEl.removeChild(livesEl.firstChild);
+    for (let i = 0; i < lives; i++) livesEl.appendChild(CE('div', { class: 'heart' }));
+    if (lives <= 0) { running = false; endGame('Out of lives!'); }
+  }
+
+  function handleAnswer(isCorrect) {
+    playBeep(isCorrect);
+    awardForAnswer(isCorrect);
+    if (isCorrect) {
+      scoreCorrect += 1;
+      if (questionIndex === lesson.questions.length - 1) {
+        // finish
+        awardForLessonCompletion();
+        profile.lessons[lesson.id] = profile.lessons[lesson.id] || { bestScore: 0 };
+        profile.lessons[lesson.id].bestScore = Math.max(profile.lessons[lesson.id].bestScore, scoreCorrect);
+        saveProfile();
+        if (profile.owned['confetti']) confettiBurst();
+        running = false; endGame('Lesson complete!');
+      } else {
+        questionIndex += 1;
+        resetLevel();
+      }
+    } else {
+      // wrong answer: small penalty
+      damage();
+      toast('Wrong answer');
+    }
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, width, height);
+
+    // Background grid
+    ctx.save();
+    ctx.globalAlpha = 0.2;
+    ctx.strokeStyle = 'rgba(255,255,255,.05)';
+    const step = 40 * dpi;
+    for (let x = 0; x < width; x += step) { ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, height); ctx.stroke(); }
+    for (let y = 0; y < height; y += step) { ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(width, y); ctx.stroke(); }
+    ctx.restore();
+
+    // Player
+    ctx.fillStyle = getComputedStyle(document.documentElement).getPropertyValue('--accent') || '#7c5cff';
+    ctx.beginPath(); ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2); ctx.fill();
+
+    // Enemies
+    enemies.forEach(e => {
+      ctx.fillStyle = 'rgba(255,107,107,.9)';
+      ctx.beginPath(); ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2); ctx.fill();
+    });
+
+    // Pickups (answers)
+    ctx.font = `${14 * dpi}px Inter, system-ui`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    pickups.forEach(p => {
+      ctx.fillStyle = 'rgba(0,0,0,.35)';
+      ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = 'rgba(255,255,255,.15)'; ctx.lineWidth = 2; ctx.stroke();
+      ctx.fillStyle = 'white';
+      const t = currentQ.answers[p.i];
+      const txt = t.length > 12 ? t.slice(0, 12) + '…' : t;
+      ctx.fillText(txt, p.x, p.y);
+    });
+  }
+
+  function loop(now) {
+    if (!running) return;
+    const dt = Math.max(0, Math.min(0.033, (now - last) / 1000));
+    last = now;
+    update(dt);
+    render();
+    requestAnimationFrame(loop);
+  }
+
+  function endGame(message) {
+    overlay.innerHTML = '';
+    const btns = CE('div', { class: 'row' }, [
+      CE('button', { class: 'btn', text: 'Back to Lessons', onclick: renderLessons }),
+      CE('div', { class: 'space' }),
+      CE('button', { class: 'btn primary', text: 'Play Again', onclick: () => startGameMode(lesson) }),
+    ]);
+    panel.innerHTML = '';
+    panel.append(
+      CE('h3', { text: message }),
+      CE('p', { text: `Correct: ${scoreCorrect}/${lesson.questions.length}` }),
+      btns
+    );
+    overlay.style.display = 'grid';
+  }
+
+  // init
+  overlay.style.display = 'none';
+  resetLevel();
+  (function tick() {
+    requestAnimationFrame(tick);
+  })();
+  requestAnimationFrame(t => { last = t; loop(t); });
 }
 
 // Initial theme if owned

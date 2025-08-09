@@ -124,3 +124,16 @@ body {
   position: absolute; width: 8px; height: 14px; 
   opacity: .9; will-change: transform, opacity;
 }
+
+.game-wrap { position: relative; width: 100%; height: 60vh; min-height: 360px; }
+.game-canvas { width: 100%; height: 100%; display: block; background: radial-gradient(900px 500px at 10% -10%, #1e2438, #101525); border: 1px solid rgba(255,255,255,.08); border-radius: 14px; }
+.hud-float { position: absolute; left: 12px; top: 12px; display: flex; gap: 10px; align-items: center; z-index: 2; }
+.hud-float .heart { width: 18px; height: 18px; background: #ff6b6b; border-radius: 4px; box-shadow: 0 0 10px rgba(255,107,107,.4); }
+.hud-float .timer { background: rgba(0,0,0,.35); padding: 6px 8px; border-radius: 8px; border: 1px solid rgba(255,255,255,.08); color: var(--muted); }
+
+.game-overlay { position: absolute; inset: 0; display: grid; place-items: center; pointer-events: none; }
+.game-overlay .panel { pointer-events: auto; background: var(--card); border: 1px solid rgba(255,255,255,.1); border-radius: 12px; padding: 16px; text-align: center; }
+
+@media (max-width: 720px) {
+  .game-wrap { height: 50vh; }
+}
