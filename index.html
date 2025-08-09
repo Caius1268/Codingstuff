@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Computer System Servicing Simulator</title>
+    <meta name="description" content="Interactive simulator for SHS ICT students on computer system servicing: assembly, troubleshooting, OS install, networking, safety, and assessments." />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">💻</div>
+        <div class="brand-meta">
+          <h1>CS Servicing Simulator</h1>
+          <p class="tagline">Practice PC servicing skills the safe way</p>
+        </div>
+      </div>
+      <nav class="app-nav" aria-label="Primary">
+        <button class="nav-link" data-route="home">Home</button>
+        <button class="nav-link" data-route="lab">Virtual Lab</button>
+        <button class="nav-link" data-route="troubleshoot">Troubleshooting</button>
+        <button class="nav-link" data-route="osinstall">OS Install</button>
+        <button class="nav-link" data-route="networking">Networking</button>
+        <button class="nav-link" data-route="safety">Safety & Tools</button>
+        <button class="nav-link" data-route="assessments">Assessments</button>
+      </nav>
+      <div class="header-actions">
+        <label class="toggle">
+          <input type="checkbox" id="teacherModeToggle" />
+          <span>Teacher mode</span>
+        </label>
+        <button id="exportProgressBtn" class="btn subtle" title="Export progress">Export</button>
+        <button id="resetProgressBtn" class="btn danger subtle" title="Reset progress">Reset</button>
+      </div>
+    </header>
+
+    <main id="app" tabindex="-1">
+      <!-- Home -->
+      <section data-view="home" class="view active">
+        <div class="hero">
+          <h2>Welcome!</h2>
+          <p>Explore hands-on modules to learn PC assembly, troubleshooting, installing operating systems, networking basics, and safety procedures.</p>
+          <div class="hero-actions">
+            <button class="btn primary" data-route="lab">Start in Virtual Lab</button>
+            <button class="btn" data-route="assessments">Take a quick assessment</button>
+          </div>
+        </div>
+        <div class="cards-grid">
+          <article class="card" data-route="lab">
+            <h3>Virtual Lab</h3>
+            <p>Drag and drop components to build a PC. Learn compatibility and best practices.</p>
+            <div class="chip">Hands-on</div>
+          </article>
+          <article class="card" data-route="troubleshoot">
+            <h3>Troubleshooting</h3>
+            <p>Diagnose common issues with guided decision trees.</p>
+            <div class="chip">Scenarios</div>
+          </article>
+          <article class="card" data-route="osinstall">
+            <h3>OS Installation</h3>
+            <p>Simulate BIOS setup, disk partitioning, and first-boot configuration.</p>
+            <div class="chip">Step-by-step</div>
+          </article>
+          <article class="card" data-route="networking">
+            <h3>Networking</h3>
+            <p>Practice cable standards and basic IP addressing.</p>
+            <div class="chip">Mini-games</div>
+          </article>
+          <article class="card" data-route="safety">
+            <h3>Safety & Tools</h3>
+            <p>Choose the right tools and safety measures for each task.</p>
+            <div class="chip">Safety first</div>
+          </article>
+          <article class="card" data-route="assessments">
+            <h3>Assessments</h3>
+            <p>Quizzes and practical checks with instant feedback.</p>
+            <div class="chip">Auto-graded</div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Virtual Lab -->
+      <section data-view="lab" class="view">
+        <div class="view-header">
+          <h2>Virtual Lab</h2>
+          <div class="actions">
+            <button id="labCheckBtn" class="btn primary">Check Build</button>
+            <button id="labClearBtn" class="btn">Clear</button>
+            <span class="score" id="labScore"></span>
+          </div>
+        </div>
+        <div class="lab-grid">
+          <div class="lab-palette" id="labPalette" aria-label="Components palette"></div>
+          <div class="lab-case" id="labCase" aria-label="PC case">
+            <div class="case-slot" data-slot="motherboard" aria-label="Motherboard slot">Motherboard</div>
+            <div class="case-slot" data-slot="cpu" aria-label="CPU socket">CPU</div>
+            <div class="case-slot" data-slot="ram1" aria-label="RAM slot 1">RAM 1</div>
+            <div class="case-slot" data-slot="ram2" aria-label="RAM slot 2">RAM 2</div>
+            <div class="case-slot" data-slot="gpu" aria-label="GPU slot">GPU</div>
+            <div class="case-slot" data-slot="storage" aria-label="Storage bay">Storage</div>
+            <div class="case-slot" data-slot="psu" aria-label="Power supply bay">PSU</div>
+          </div>
+        </div>
+        <details class="hint">
+          <summary>Hints</summary>
+          <ul>
+            <li>Install the motherboard before other components.</li>
+            <li>Match CPU socket type to motherboard socket.</li>
+            <li>Populate RAM in dual-channel configuration (e.g., RAM1 + RAM2).</li>
+            <li>Connect PSU cables to motherboard, CPU, GPU, and storage.</li>
+          </ul>
+        </details>
+      </section>
+
+      <!-- Troubleshooting -->
+      <section data-view="troubleshoot" class="view">
+        <div class="view-header">
+          <h2>Troubleshooting</h2>
+          <div class="actions">
+            <select id="troubleScenarioSelect" class="select"></select>
+            <button id="troubleRestartBtn" class="btn">Restart</button>
+            <span class="score" id="troubleScore"></span>
+          </div>
+        </div>
+        <div id="troubleContainer" class="trouble"></div>
+      </section>
+
+      <!-- OS Install -->
+      <section data-view="osinstall" class="view">
+        <div class="view-header">
+          <h2>OS Installation Simulator</h2>
+          <div class="actions">
+            <button id="osPrevBtn" class="btn">Back</button>
+            <button id="osNextBtn" class="btn primary">Next</button>
+            <span class="score" id="osScore"></span>
+          </div>
+        </div>
+        <div id="osScreen" class="os-screen" role="region" aria-live="polite"></div>
+      </section>
+
+      <!-- Networking -->
+      <section data-view="networking" class="view">
+        <div class="view-header">
+          <h2>Networking Lab</h2>
+          <div class="actions">
+            <button id="netResetBtn" class="btn">Reset</button>
+            <span class="score" id="netScore"></span>
+          </div>
+        </div>
+        <div class="net-grid">
+          <div class="net-card">
+            <h3>RJ-45 Crimping (T568B)</h3>
+            <p>Reorder the wires to match the T568B standard from pin 1 at the top to pin 8 at the bottom.</p>
+            <ol id="t568bList" class="sortable-list" aria-label="T568B wire order"></ol>
+            <button id="t568bCheckBtn" class="btn small">Check Order</button>
+          </div>
+          <div class="net-card">
+            <h3>IP Addressing</h3>
+            <p>Assign IPs to two PCs so they are on the same network.</p>
+            <div class="form-grid">
+              <label>PC1 IP <input id="pc1Ip" placeholder="192.168.1.10" /></label>
+              <label>PC1 Mask <input id="pc1Mask" placeholder="255.255.255.0" /></label>
+              <label>PC2 IP <input id="pc2Ip" placeholder="192.168.1.20" /></label>
+              <label>PC2 Mask <input id="pc2Mask" placeholder="255.255.255.0" /></label>
+            </div>
+            <button id="ipCheckBtn" class="btn small">Validate</button>
+            <div id="ipFeedback" class="feedback" aria-live="polite"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Safety & Tools -->
+      <section data-view="safety" class="view">
+        <div class="view-header">
+          <h2>Safety & Tools</h2>
+          <div class="actions">
+            <button id="safetyResetBtn" class="btn">Reset</button>
+            <span class="score" id="safetyScore"></span>
+          </div>
+        </div>
+        <div class="cards-grid">
+          <article class="card">
+            <h3>Choose the right tools</h3>
+            <p>Select all tools needed to install a 2.5" SATA SSD.</p>
+            <div id="toolsChecklist" class="checklist"></div>
+            <button id="toolsCheckBtn" class="btn small">Check</button>
+            <div id="toolsFeedback" class="feedback" aria-live="polite"></div>
+          </article>
+          <article class="card">
+            <h3>ESD and PPE</h3>
+            <p>Which PPE is appropriate when assembling a PC?</p>
+            <div id="ppeChecklist" class="checklist"></div>
+            <button id="ppeCheckBtn" class="btn small">Check</button>
+            <div id="ppeFeedback" class="feedback" aria-live="polite"></div>
+          </article>
+          <article class="card">
+            <h3>Multimeter Basics</h3>
+            <p>Which setting to test a power supply connector for 12V?</p>
+            <div id="multiOptions" class="radio-list"></div>
+            <button id="multiCheckBtn" class="btn small">Check</button>
+            <div id="multiFeedback" class="feedback" aria-live="polite"></div>
+          </article>
+        </div>
+      </section>
+
+      <!-- Assessments -->
+      <section data-view="assessments" class="view">
+        <div class="view-header">
+          <h2>Assessments</h2>
+          <div class="actions">
+            <button id="quizRestartBtn" class="btn">Restart</button>
+            <span class="score" id="quizScore"></span>
+          </div>
+        </div>
+        <div id="quizContainer" class="quiz"></div>
+      </section>
+    </main>
+
+    <footer class="app-footer">
+      <span>© <span id="year"></span> CS Servicing Simulator</span>
+      <span class="sep">•</span>
+      <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>
+    </footer>
+
+    <div id="toast" role="status" aria-live="polite" class="toast" hidden></div>
+
+    <script src="/main.js" defer></script>
+  </body>
+</html>
