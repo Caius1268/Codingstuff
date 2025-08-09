@@ -199,6 +199,9 @@ const tabs = {
   daily: EL('#tab-daily'),
   stats: EL('#tab-stats'),
   settings: EL('#tab-settings'),
+  editor: EL('#tab-editor'),
+  arcade: EL('#tab-arcade'),
+  help: EL('#tab-help'),
 };
 
 function levelFromXP(xp){ return Math.max(1, Math.floor(Math.sqrt(xp/50))+1); }
@@ -848,6 +851,44 @@ EL('#tab-shop').addEventListener('click', renderShop);
 EL('#tab-daily').addEventListener('click', renderDaily);
 EL('#tab-stats').addEventListener('click', renderStats);
 EL('#tab-settings').addEventListener('click', renderSettings);
+
+// New tabs wiring
+EL('#tab-editor').addEventListener('click', () => {
+  setActiveTab('editor');
+  if (window.EDITOR?.renderEditor) window.EDITOR.renderEditor();
+});
+EL('#tab-arcade').addEventListener('click', () => {
+  setActiveTab('arcade');
+  view.innerHTML='';
+  const head = CE('div', { class: 'row' }, [ CE('h2', { text: 'Arcade' }), CE('div', { class: 'space' }) ]);
+  view.appendChild(head);
+  const row = CE('div', { class: 'arcade-grid' });
+  const m1 = CE('div', { class: 'arcade-card' }); const b1=CE('button', { class: 'btn primary', text: 'Play Memory Match', onclick: ()=>{ view.innerHTML=''; window.ARCADE?.renderMemoryMatch(); } }); m1.appendChild(b1);
+  const m2 = CE('div', { class: 'arcade-card' }); const b2=CE('button', { class: 'btn primary', text: 'Play Typing Challenge', onclick: ()=>{ view.innerHTML=''; window.ARCADE?.renderTypingChallenge(); } }); m2.appendChild(b2);
+  const m3 = CE('div', { class: 'arcade-card' }); const b3=CE('button', { class: 'btn primary', text: 'Play Reaction Test', onclick: ()=>{ view.innerHTML=''; window.ARCADE?.renderReactionTest(); } }); m3.appendChild(b3);
+  row.append(m1,m2,m3); view.appendChild(row);
+});
+EL('#tab-help').addEventListener('click', () => {
+  setActiveTab('help');
+  view.innerHTML='';
+  const card = CE('div', { class: 'help' }, [
+    CE('h3', { text: 'Help & Shortcuts' }),
+    CE('p', { text: 'WASD/Arrow keys or Joystick for movement. ESC to pause.' }),
+    CE('h4', { text: 'Tabs' }),
+    CE('p', { text: 'Lessons: Learn and take quizzes. Shop: Buy cosmetics/boosts. Daily: Claim streak rewards. Stats: Progress and achievements. Settings: Preferences. Editor: Build your own lessons. Arcade: Minigames.' }),
+    CE('h4', { text: 'Data' }),
+    CE('p', { text: 'Your progress is stored locally. Use Export/Import in Settings to move your data.' })
+  ]);
+  view.appendChild(card);
+});
+
+// Award arcade scores with coins
+Bus.on('arcade:score', (evt)=>{
+  if (!evt) return;
+  if (evt.game==='memory'){ addCoins(Math.max(10, 40 - evt.moves)); }
+  if (evt.game==='typing'){ addCoins(Math.min(100, Math.max(10, evt.wpm))); }
+  if (evt.game==='reaction'){ addCoins(Math.max(5, 60 - evt.ms/10)); }
+});
 
 // Initial view
 renderLessons();
