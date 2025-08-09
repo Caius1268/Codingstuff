@@ -170,3 +170,14 @@ input[type="text"], select, .switch {
 
 /* Touch hint */
 .touch-hint { position: absolute; bottom: 12px; left: 12px; background: rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.1); color: var(--muted); padding: 6px 8px; border-radius: 8px; }
+
+/* High contrast theme */
+body.high-contrast { --card:#0f0f0f; --card-2:#1a1a1a; --text:#ffffff; --muted:#dddddd; --accent:#00e6ff; }
+
+/* Joystick */
+.joystick { position:absolute; bottom:16px; left:16px; width:120px; height:120px; z-index:3; touch-action:none; }
+.joystick-base { position:absolute; inset:0; border-radius:50%; background:rgba(255,255,255,.06); border:1px solid rgba(255,255,255,.15); }
+.joystick-knob { position:absolute; left:50%; top:50%; width:48px; height:48px; border-radius:50%; transform:translate(-50%,-50%); background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); }
+
+/* Boost pill */
+.boost-pill { position:absolute; right:12px; bottom:12px; background: linear-gradient(135deg, #ffd166, #ff9f1a); color:#222; padding:6px 10px; border-radius:999px; border:1px solid rgba(0,0,0,.2); font-weight:700; z-index:3; }

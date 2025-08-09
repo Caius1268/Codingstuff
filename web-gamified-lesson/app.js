@@ -45,6 +45,8 @@ const Shop = [
   { id: 'confetti', name: 'Confetti Celebrations', type: 'effect', price: 120, data: {} },
   { id: 'sfx_beep', name: 'Answer SFX (Beep)', type: 'sfx', price: 60, data: {} },
   { id: 'trail_neon', name: 'Player Trail', type: 'trail', price: 140, data: { color: '#00f5d4' } },
+  { id: 'boost_xp', name: '2x XP (15m)', type: 'boost', price: 200, data: { kind: 'xp', durationMs: 15*60*1000 } },
+  { id: 'map_skin_grid', name: 'Map Skin: Grid', type: 'map_skin', price: 90, data: { skin: 'grid' } },
 ];
 
 // Profile persistence
@@ -56,9 +58,11 @@ const DEFAULT_PROFILE = {
   owned: {},
   daily: { lastClaim: 0, streak: 0 },
   lessons: {}, // { [lessonId]: { bestScore: number } }
-  settings: { sfxEnabled: true, confettiEnabled: true, difficulty: 'normal' },
+  settings: { sfxEnabled: true, confettiEnabled: true, difficulty: 'normal', hapticsEnabled: true, highContrast: false, controlMode: 'touch' },
   achievements: {}, // { id: true }
   leaderboard: [], // [{ ts, lessonId, correct }]
+  boosts: { xpUntil: 0, mapSkin: '' },
+  spentCoins: 0,
 };
 
 let profile = loadProfile();
@@ -79,7 +83,9 @@ function saveProfile() {
 }
 
 function addXP(amount) {
-  profile.xp = Math.max(0, (profile.xp || 0) + amount);
+  const now = Date.now();
+  const boosted = (profile.boosts?.xpUntil||0) > now ? amount*2 : amount;
+  profile.xp = Math.max(0, (profile.xp || 0) + boosted);
   saveProfile();
 }
 function addCoins(amount) {
@@ -324,7 +330,7 @@ function renderShop() {
   const header = CE('div', { class: 'row' }, [
     CE('h2', { text: 'Shop' }),
     CE('div', { class: 'space' }),
-    CE('span', { class: 'badge', text: 'Cosmetics & effects' })
+    CE('span', { class: 'badge', text: 'Cosmetics, boosts & effects' })
   ]);
   view.appendChild(header);
 
@@ -350,9 +356,10 @@ function purchaseOrUse(item) {
     if ((profile.coins|0) < item.price) { toast('Not enough coins'); return; }
     const before = profile.coins|0;
     profile.coins -= item.price;
+    profile.spentCoins = (profile.spentCoins||0) + item.price;
     profile.owned[item.id] = true;
     saveProfile();
-    const spent = before - (profile.coins|0);
+    const spent = profile.spentCoins|0;
     if (spent >= 200) unlockAchievement('spender');
     toast(`Purchased ${item.name}`);
   }
@@ -366,6 +373,15 @@ function applyItem(item) {
   }
   if (item.type === 'sfx') {
     toast('Answer SFX active');
+  }
+  if (item.type === 'boost' && item.data.kind === 'xp') {
+    profile.boosts = profile.boosts || {}; profile.boosts.xpUntil = Date.now() + (item.data.durationMs||0);
+    saveProfile(); toast('2x XP active!');
+  }
+  if (item.type === 'map_skin') {
+    profile.boosts = profile.boosts || {}; profile.boosts.mapSkin = item.data.skin;
+    document.body.dataset.mapSkin = item.data.skin;
+    saveProfile(); toast(`${item.name} applied`);
   }
 }
 
@@ -481,21 +497,44 @@ function renderSettings() {
   })() ]);
   const sfxField = CE('div', { class: 'field' }, [ CE('label', { text: 'Sound Effects' }), CE('label', { class: 'switch' }, [ CE('input', { type: 'checkbox', ...(profile.settings.sfxEnabled?{checked:''}:{}) }), CE('span', { text: profile.settings.sfxEnabled? 'On':'Off' }) ]) ]);
   const confField = CE('div', { class: 'field' }, [ CE('label', { text: 'Confetti' }), CE('label', { class: 'switch' }, [ CE('input', { type: 'checkbox', ...(profile.settings.confettiEnabled?{checked:''}:{}) }), CE('span', { text: profile.settings.confettiEnabled? 'On':'Off' }) ]) ]);
+  const hapField = CE('div', { class: 'field' }, [ CE('label', { text: 'Haptics (vibration)' }), CE('label', { class: 'switch' }, [ CE('input', { type: 'checkbox', ...(profile.settings.hapticsEnabled?{checked:''}:{}) }), CE('span', { text: profile.settings.hapticsEnabled? 'On':'Off' }) ]) ]);
+  const hcField = CE('div', { class: 'field' }, [ CE('label', { text: 'High Contrast' }), CE('label', { class: 'switch' }, [ CE('input', { type: 'checkbox', ...(profile.settings.highContrast?{checked:''}:{}) }), CE('span', { text: profile.settings.highContrast? 'On':'Off' }) ]) ]);
+  const ctrlField = CE('div', { class: 'field' }, [ CE('label', { text: 'Control Mode (game)' }), (function(){ const sel=CE('select'); ['touch','joystick'].forEach(v=> sel.appendChild(CE('option', { value: v, text: v, ...(v===profile.settings.controlMode?{selected:''}:{}) }))); return sel; })() ]);
+
+  const exportBtn = CE('button', { class: 'btn', text: 'Export Data' });
+  exportBtn.addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(profile,null,2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob); const a=document.createElement('a'); a.href=url; a.download='gamified-lesson-profile.json'; a.click(); setTimeout(()=>URL.revokeObjectURL(url), 500);
+  });
+  const importBtn = CE('button', { class: 'btn', text: 'Import Data' });
+  importBtn.addEventListener('click', () => {
+    const input = document.createElement('input'); input.type='file'; input.accept='application/json'; input.onchange = async () => {
+      const file = input.files[0]; if (!file) return; try { const text = await file.text(); const data = JSON.parse(text); profile = { ...structuredClone(DEFAULT_PROFILE), ...data }; saveProfile(); toast('Imported'); } catch { toast('Import failed'); }
+    }; input.click();
+  });
 
   const row = CE('div', { class: 'row' }, [ CE('button', { class: 'btn primary', text: 'Save', onclick: () => {
     profile.name = nameField.querySelector('input').value.slice(0, 20) || 'Player';
     profile.settings.difficulty = diffField.querySelector('select').value;
     profile.settings.sfxEnabled = sfxField.querySelector('input').checked;
     profile.settings.confettiEnabled = confField.querySelector('input').checked;
+    profile.settings.hapticsEnabled = hapField.querySelector('input').checked;
+    profile.settings.highContrast = hcField.querySelector('input').checked;
+    profile.settings.controlMode = ctrlField.querySelector('select').value;
+    document.body.classList.toggle('high-contrast', !!profile.settings.highContrast);
     saveProfile(); toast('Settings saved');
-  }}), CE('div', { class: 'space' }), CE('button', { class: 'btn danger', text: 'Reset Data', onclick: () => {
+  }}), CE('div', { class: 'space' }), exportBtn, importBtn, CE('div', { class: 'space' }), CE('button', { class: 'btn danger', text: 'Reset Data', onclick: () => {
     if (confirm('Reset all local data?')) { localStorage.clear(); profile = structuredClone(DEFAULT_PROFILE); saveProfile(); renderLessons(); }
   }}) ]);
 
-  form.append(nameField, diffField, sfxField, confField, row);
+  form.append(nameField, diffField, sfxField, confField, hapField, hcField, ctrlField, row);
   card.appendChild(form);
   view.appendChild(card);
 }
+
+// Apply theme at load
+if (profile.settings?.highContrast) document.body.classList.add('high-contrast');
+if (profile.boosts?.mapSkin) document.body.dataset.mapSkin = profile.boosts.mapSkin;
 
 // Game Mode
 const _origStartGameMode = startGameMode;
@@ -510,12 +549,18 @@ startGameMode = function(lesson){
   const timerEl = CE('div', { class: 'timer', text: 'Time: 60' });
   hud.append(livesEl, timerEl);
   const pauseBtn = CE('button', { class: 'btn game-pause', text: 'Pause' });
+  const boostBadge = CE('div', { class: 'boost-pill', text: '2x XP' });
 
   const overlay = CE('div', { class: 'game-overlay' });
   const panel = CE('div', { class: 'panel' });
   overlay.appendChild(panel);
 
+  const joystick = CE('div', { class: 'joystick' }, [ CE('div', { class: 'joystick-base' }), CE('div', { class: 'joystick-knob' }) ]);
+  const showJoystick = profile.settings.controlMode === 'joystick';
+
   wrap.append(canvas, hud, pauseBtn, overlay);
+  if (showJoystick) wrap.appendChild(joystick);
+  if ((profile.boosts?.xpUntil||0) > Date.now()) wrap.appendChild(boostBadge);
   view.appendChild(wrap);
 
   const ctx = canvas.getContext('2d');
@@ -640,15 +685,19 @@ startGameMode = function(lesson){
     if (timeLeft <= 0){ timeLeft=0; running=false; return endGame('Time up!'); }
     timerEl.textContent = 'Time: ' + Math.ceil(timeLeft);
 
-    // Input: keyboard or pointer
+    // Input selection
     let ax=0, ay=0;
     const up = keys.has('w')||keys.has('arrowup');
     const down = keys.has('s')||keys.has('arrowdown');
     const left = keys.has('a')||keys.has('arrowleft');
     const right = keys.has('d')||keys.has('arrowright');
-    if (up||down||left||right){ ax = (right?1:0)-(left?1:0); ay = (down?1:0)-(up?1:0); const len=Math.hypot(ax,ay)||1; ax/=len; ay/=len; }
+    if (showJoystick && (joyActive || true)) { ax = joyDX; ay = joyDY; }
+    else if (up||down||left||right){ ax = (right?1:0)-(left?1:0); ay = (down?1:0)-(up?1:0); const len=Math.hypot(ax,ay)||1; ax/=len; ay/=len; }
     else if (pointerActive){ const dx=pointer.x-player.x, dy=pointer.y-player.y; const len=Math.hypot(dx,dy)||1; ax=dx/len; ay=dy/len; }
-    const speed = player.speed * (slowUntil>performance.now()?0.6:1);
+
+    // Combo speed buff
+    const speedBuff = (update._speedUntil||0) > performance.now() ? 1.2 : 1;
+    const speed = player.speed * (slowUntil>performance.now()?0.6:1) * speedBuff;
     player.vx = ax*speed; player.vy=ay*speed;
 
     // Move with obstacle collision (simple push out)
