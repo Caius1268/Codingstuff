@@ -1,0 +1,78 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>For Angela 💖</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Great+Vibes&family=Inter:wght@300;400;600;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="floating-hearts" aria-hidden="true"></canvas>
+  <header class="hero">
+    <div class="hero-content">
+      <h1 class="title">For Angela</h1>
+      <p id="typewriter" aria-live="polite"></p>
+      <div class="cta-row">
+        <button id="playMusic" class="btn">Play our song ▶</button>
+        <button id="openComposer" class="btn btn-secondary">Write a love note ✍️</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="section">
+      <h2>Our Moments</h2>
+      <div class="gallery" id="photoGallery">
+        <!-- Photos injected by JS or placed here -->
+      </div>
+    </section>
+
+    <section class="section alt">
+      <h2>GIFs that feel like us</h2>
+      <div class="gif-grid" id="gifGrid"></div>
+    </section>
+
+    <section class="section">
+      <h2>Stickerboard</h2>
+      <div class="stickers" id="stickers"></div>
+      <div class="sticker-canvas" id="stickerCanvas" role="img" aria-label="Canvas to place stickers"></div>
+      <div class="hint">Drag a sticker to the board. Double-click to rotate. Right-click to delete.</div>
+    </section>
+
+    <section class="section alt">
+      <h2>Love Note Composer</h2>
+      <form id="composer" class="composer">
+        <textarea id="noteText" placeholder="Dear Angela..." maxlength="500"></textarea>
+        <div class="composer-actions">
+          <button type="button" id="generatePrompt" class="btn btn-secondary">Prompt ideas 💡</button>
+          <button type="submit" class="btn">Save note 💌</button>
+        </div>
+      </form>
+      <div class="notes" id="notes"></div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div>Made with 💗 for Angela</div>
+    <div id="daysCounter"></div>
+    <button id="shareBtn" class="btn btn-link">Share this page</button>
+  </footer>
+
+  <audio id="audio" preload="auto">
+    <source src="https://cdn.pixabay.com/audio/2024/02/20/audio_c8a1d2a6b1.mp3" type="audio/mpeg">
+  </audio>
+
+  <template id="photoTemplate">
+    <figure class="photo">
+      <img alt="Our photo" loading="lazy">
+      <figcaption></figcaption>
+    </figure>
+  </template>
+
+  <script src="script.js" defer></script>
+</body>
+</html>
+
