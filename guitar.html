@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Playable Guitar - Single File</title>
+  <style>
+    :root {
+      --bg: #0f1220;
+      --panel: #171a2b;
+      --panel-2: #1e2238;
+      --text: #e6ebff;
+      --muted: #9aa3c7;
+      --accent: #5ad1ff;
+      --accent-2: #8df79a;
+      --danger: #ff6b7a;
+      --warn: #ffd166;
+      --ok: #7ef0a5;
+      --fret: #c0a978;
+      --string: #d7dbdf;
+      --string-low: #aeb3b8;
+      --active: #ffb703;
+      --shadow: rgba(0,0,0,0.35);
+    }
+    html, body {
+      height: 100%;
+      margin: 0;
+      background: radial-gradient(1200px 800px at 20% -10%, #1b2040 0%, var(--bg) 55%);
+      color: var(--text);
+      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+    }
+    .app {
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      grid-template-columns: 1fr;
+      gap: 12px;
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    header {
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      border: 1px solid #2a2f4a;
+      border-radius: 12px;
+      padding: 12px;
+      box-shadow: 0 8px 24px var(--shadow), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    header h1 {
+      margin: 0 0 6px 0;
+      font-size: 18px;
+      letter-spacing: 0.4px;
+    }
+    .controls {
+      display: grid;
+      grid-template-columns: repeat(12, minmax(0, 1fr));
+      gap: 8px;
+      align-items: center;
+    }
+    .group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(255,255,255,0.03);
+      border: 1px solid #2a2f4a;
+      border-radius: 10px;
+      padding: 6px 8px;
+    }
+    .group label { font-size: 12px; color: var(--muted); }
+    select, input[type="number"], input[type="text"] {
+      background: #0d1020;
+      color: var(--text);
+      border: 1px solid #2a2f4a;
+      border-radius: 8px;
+      padding: 6px 8px;
+      outline: none;
+    }
+    input[type="range"] {
+      width: 120px;
+    }
+    button {
+      background: linear-gradient(180deg, #2a3152, #212744);
+      color: var(--text);
+      border: 1px solid #323a60;
+      border-radius: 10px;
+      padding: 8px 10px;
+      cursor: pointer;
+      transition: transform 0.02s ease-in, background 0.2s;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.25), inset 0 1px 0 rgba(255,255,255,0.04);
+      font-weight: 600;
+      letter-spacing: 0.2px;
+    }
+    button:hover { background: linear-gradient(180deg, #323a60, #283055); }
+    button:active { transform: translateY(1px); }
+    button.secondary { background: linear-gradient(180deg, #26314b, #1f2742); border-color: #2a3356; }
+    button.warn { border-color: #5a3e1b; background: linear-gradient(180deg, #664b1c, #4a3513); color: #ffe0a3; }
+    button.danger { border-color: #5a2a2f; background: linear-gradient(180deg, #6e2b35, #4a1820); color: #ffd4da; }
+
+    .board-wrap {
+      background: linear-gradient(180deg, #14182b 0%, #0e1225 100%);
+      border: 1px solid #2a2f4a;
+      border-radius: 14px;
+      padding: 12px;
+      box-shadow: 0 20px 50px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+    .fretboard {
+      position: relative;
+      display: grid;
+      grid-template-rows: repeat(6, 40px);
+      grid-template-columns: 38px repeat(var(--frets), 1fr);
+      gap: 0;
+      border-radius: 12px;
+      overflow: hidden;
+      background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.02));
+    }
+    .fret-num {
+      display: flex; align-items: center; justify-content: center;
+      font-size: 12px; color: var(--muted);
+      border-right: 1px solid rgba(255,255,255,0.06);
+      background: rgba(0,0,0,0.15);
+    }
+    .cell {
+      position: relative;
+      background: rgba(246, 232, 198, 0.05);
+      border-right: 1px solid rgba(255,255,255,0.06);
+      cursor: pointer;
+      user-select: none;
+      transition: background 0.08s ease-in;
+    }
+    .cell:hover { background: rgba(255,255,255,0.08); }
+    .fret-line {
+      position: absolute; top: 0; bottom: 0; right: 0; width: 3px;
+      background: linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0.1));
+      box-shadow: inset 0 0 0 1px rgba(0,0,0,0.25);
+    }
+    .nut {
+      position: absolute; top: 0; bottom: 0; left: 38px; width: 5px;
+      background: linear-gradient(180deg, #f4f2ef, #cfcac4);
+      box-shadow: 2px 0 0 rgba(0,0,0,0.35);
+      z-index: 2;
+    }
+    .string {
+      pointer-events: none;
+      position: absolute; left: 38px; right: 0; height: 2px;
+      background: linear-gradient(180deg, var(--string), var(--string-low));
+      top: calc(var(--row) * 40px + 20px - 1px);
+      box-shadow: 0 0 0.5px rgba(255,255,255,0.2);
+    }
+    .marker {
+      position: absolute; width: 12px; height: 12px; border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, #fff, #ddd);
+      top: 50%; transform: translate(-50%, -50%);
+      left: calc(38px + var(--pos)); z-index: 1; opacity: 0.7;
+    }
+    .active-dot {
+      position: absolute; width: 18px; height: 18px; border-radius: 50%;
+      background: radial-gradient(circle at 30% 30%, var(--active), #e07a00);
+      border: 1px solid rgba(0,0,0,0.35);
+      transform: translate(-50%, -50%);
+      left: calc(38px + var(--pos));
+      top: calc(var(--row) * 40px + 20px);
+      z-index: 3; box-shadow: 0 6px 10px rgba(0,0,0,0.35);
+      transition: left 0.08s ease-out, top 0.08s ease-out, opacity 0.1s;
+    }
+    .legend { display: flex; gap: 10px; align-items: center; color: var(--muted); font-size: 12px; margin-top: 8px; }
+    .kbd { background:#0c1022; border:1px solid #2a2f4a; padding:2px 6px; border-radius:6px; color:#c8cff2; font-weight:700; font-size:11px; }
+    .foot {
+      display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px;
+      background: linear-gradient(180deg, var(--panel) 0%, var(--panel-2) 100%);
+      border: 1px solid #2a2f4a; border-radius: 12px; padding: 8px 12px;
+    }
+    .overlay {
+      position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+      background: radial-gradient(900px 700px at 30% -10%, rgba(97, 130, 255, 0.15), rgba(15,18,32,0.92)), rgba(20,24,44,0.8);
+      z-index: 1000;
+    }
+    .overlay > div {
+      background: linear-gradient(180deg, #141a34, #0e1228);
+      border: 1px solid #2a2f4a; border-radius: 14px; padding: 18px; max-width: 520px; text-align: center;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.55);
+    }
+    .dots { display: inline-flex; gap: 6px; margin: 0 6px; }
+    .dot { width: 6px; height: 6px; background: var(--muted); border-radius: 50%; opacity: 0.6; }
+    .rec { color: var(--danger); }
+    .green { color: var(--ok); }
+    .hidden { display: none; }
+    @media (max-width: 900px) {
+      .controls { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .fretboard { grid-template-rows: repeat(6, 36px); }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <h1>Interactive Guitar</h1>
+      <div class="controls">
+        <div class="group" style="grid-column: span 3;">
+          <label>Chord</label>
+          <select id="chordSelect"></select>
+          <button id="btnStrumDown">Strum ↓</button>
+          <button id="btnStrumUp">Strum ↑</button>
+        </div>
+        <div class="group" style="grid-column: span 3;">
+          <label>Tuning</label>
+          <select id="tuningSelect"></select>
+          <label>Capo</label>
+          <input id="capoInput" type="number" min="0" max="12" value="0" style="width:64px;" />
+        </div>
+        <div class="group" style="grid-column: span 3;">
+          <label>Strum speed</label>
+          <input id="strumSpeed" type="range" min="10" max="120" value="35" />
+          <span id="strumSpeedVal" style="min-width:28px; text-align:right;">35</span> ms
+        </div>
+        <div class="group" style="grid-column: span 3;">
+          <label>Volume</label>
+          <input id="volume" type="range" min="0" max="1" step="0.01" value="0.8" />
+          <button id="btnMute" class="secondary">Mute</button>
+        </div>
+        <div class="group" style="grid-column: span 4;">
+          <label>Metronome</label>
+          <input id="bpm" type="range" min="40" max="220" value="100" />
+          <span id="bpmVal" style="min-width:30px; text-align:right;">100</span> BPM
+          <button id="btnMetro" class="secondary">Start</button>
+        </div>
+        <div class="group" style="grid-column: span 4;">
+          <label>Record</label>
+          <button id="btnRec" class="warn">● Rec</button>
+          <button id="btnPlay" class="secondary">▶ Play</button>
+          <label><input id="chkLoop" type="checkbox"> Loop</label>
+          <button id="btnClearRec" class="secondary">Clear</button>
+        </div>
+        <div class="group" style="grid-column: span 4;">
+          <span class="legend">
+            <span class="kbd">1..6</span> strings
+            <span class="kbd">←/→</span> fret
+            <span class="kbd">S/W</span> strum
+            <span class="kbd">Space</span> mute
+            <span class="kbd">M</span> metro
+          </span>
+        </div>
+      </div>
+    </header>
+
+    <div class="board-wrap">
+      <div class="fretboard" id="fretboard" style="--frets: 15">
+        <div class="nut"></div>
+        <!-- strings and frets injected by JS -->
+      </div>
+      <div class="legend"><span>Active fret:</span> <span id="activeFret" class="kbd">0</span></div>
+    </div>
+
+    <div class="foot">
+      <div>
+        <strong>Status:</strong> <span id="status">Ready</span>
+      </div>
+      <div>
+        <span class="muted">Built with Web Audio API.</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="overlay" id="overlay">
+    <div>
+      <h2 style="margin: 0 0 10px 0;">Click to start audio</h2>
+      <p style="margin: 0 0 12px 0; color: var(--muted);">Then use your keyboard or click the fretboard to play.</p>
+      <div class="dots">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+      </div>
+      <div style="margin-top: 14px;">
+        <button id="btnStart" class="green">Start</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // --- Utilities ---
+    const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+    const midiToFreq = (m) => 440 * Math.pow(2, (m - 69) / 12);
+    const nowMs = () => (performance || Date).now();
+
+    // --- Guitar state ---
+    const FRET_COUNT = 15;
+    const STRING_COUNT = 6; // 0 = low E, 5 = high E
+    let activeFretIndex = 0;
+
+    const Tunings = {
+      "Standard E": [40,45,50,55,59,64],
+      "Drop D": [38,45,50,55,59,64],
+      "DADGAD": [38,45,50,57,62,67],
+      "Open G": [38,43,47,50,55,62],
+      "Open D": [38,45,50,54,57,62]
+    };
+
+    const Chords = {
+      "None": [0,0,0,0,0,0],
+      "C": [ -1, 3, 2, 0, 1, 0 ],
+      "D": [ -1, -1, 0, 2, 3, 2 ],
+      "E": [ 0, 2, 2, 1, 0, 0 ],
+      "F": [ 1, 3, 3, 2, 1, 1 ],
+      "G": [ 3, 2, 0, 0, 0, 3 ],
+      "A": [ -1, 0, 2, 2, 2, 0 ],
+      "B": [ -1, 2, 4, 4, 4, 2 ],
+      "Am": [ -1, 0, 2, 2, 1, 0 ],
+      "Dm": [ -1, -1, 0, 2, 3, 1 ],
+      "Em": [ 0, 2, 2, 0, 0, 0 ],
+      "E7": [ 0, 2, 0, 1, 0, 0 ],
+      "A7": [ -1, 0, 2, 0, 2, 0 ],
+      "D7": [ -1, -1, 0, 2, 1, 2 ],
+      "G7": [ 3, 2, 0, 0, 0, 1 ]
+    };
+
+    // --- DOM ---
+    const el = (id) => document.getElementById(id);
+    const fretboard = el('fretboard');
+    const chordSelect = el('chordSelect');
+    const tuningSelect = el('tuningSelect');
+    const capoInput = el('capoInput');
+    const strumSpeed = el('strumSpeed');
+    const strumSpeedVal = el('strumSpeedVal');
+    const volume = el('volume');
+    const btnMute = el('btnMute');
+    const btnStrumDown = el('btnStrumDown');
+    const btnStrumUp = el('btnStrumUp');
+    const bpm = el('bpm');
+    const bpmVal = el('bpmVal');
+    const btnMetro = el('btnMetro');
+    const btnRec = el('btnRec');
+    const btnPlay = el('btnPlay');
+    const btnClearRec = el('btnClearRec');
+    const chkLoop = el('chkLoop');
+    const statusEl = el('status');
+    const activeFretEl = el('activeFret');
+    const overlay = el('overlay');
+    const btnStart = el('btnStart');
+
+    // Populate selects
+    for (const name of Object.keys(Chords)) {
+      const o = document.createElement('option'); o.value = name; o.textContent = name; chordSelect.appendChild(o);
+    }
+    for (const name of Object.keys(Tunings)) {
+      const o = document.createElement('option'); o.value = name; o.textContent = name; tuningSelect.appendChild(o);
+    }
+    tuningSelect.value = 'Standard E';
+    chordSelect.value = 'None';
+
+    // Build fretboard grid
+    const stringYs = [];
+    const cellCenterCache = new Map();
+    function buildFretboard() {
+      fretboard.innerHTML += ''; // keep nut
+      // Header column (string names)
+      for (let s = 0; s < STRING_COUNT; s++) {
+        const nameCell = document.createElement('div');
+        nameCell.className = 'fret-num';
+        nameCell.textContent = ['E', 'A', 'D', 'G', 'B', 'E'][s];
+        nameCell.style.gridRow = (s+1);
+        nameCell.style.gridColumn = 1;
+        fretboard.appendChild(nameCell);
+      }
+      // Cells
+      for (let s = 0; s < STRING_COUNT; s++) {
+        for (let f = 0; f <= FRET_COUNT; f++) {
+          const cell = document.createElement('div');
+          cell.className = 'cell';
+          cell.dataset.string = s;
+          cell.dataset.fret = f;
+          cell.style.gridRow = (s+1);
+          cell.style.gridColumn = (f+2); // +1 header, +1 nut overlay
+          cell.addEventListener('click', () => pluckStringAtFret(s, f, 0.9));
+          fretboard.appendChild(cell);
+          if (f > 0) {
+            const fretLine = document.createElement('div');
+            fretLine.className = 'fret-line';
+            cell.appendChild(fretLine);
+          }
+        }
+      }
+      // Strings visual
+      for (let s = 0; s < STRING_COUNT; s++) {
+        const str = document.createElement('div');
+        str.className = 'string';
+        str.style.setProperty('--row', s);
+        str.style.height = (s < 2 ? 2.4 : s < 4 ? 2.0 : 1.6) + 'px';
+        fretboard.appendChild(str);
+      }
+      // Position markers (3,5,7,9,12,15)
+      const fretWidth = fretboard.getBoundingClientRect().width / (FRET_COUNT + 1);
+      const markerFrets = [3, 5, 7, 9, 12, 15].filter(f => f <= FRET_COUNT);
+      for (const f of markerFrets) {
+        const pos = (f + 1.5) * fretWidth; // center between frets
+        const m = document.createElement('div'); m.className = 'marker'; m.style.setProperty('--pos', pos + 'px'); m.style.top = '20%'; fretboard.appendChild(m);
+        const m2 = document.createElement('div'); m2.className = 'marker'; m2.style.setProperty('--pos', pos + 'px'); m2.style.top = '80%'; fretboard.appendChild(m2);
+        if (f === 12) { // double dot
+          const m3 = document.createElement('div'); m3.className = 'marker'; m3.style.setProperty('--pos', pos + 'px'); m3.style.top = '50%'; fretboard.appendChild(m3);
+        }
+      }
+    }
+    buildFretboard();
+
+    // --- Audio Engine ---
+    let audioCtx = null;
+    let masterGain = null;
+    let limiter = null;
+    let metronomeOn = false;
+    let metroSchedulerId = null;
+    let metroNextTime = 0;
+    let metroBeat = 0;
+
+    function ensureAudio() {
+      if (audioCtx) return;
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)({latencyHint: 'interactive'});
+      masterGain = audioCtx.createGain(); masterGain.gain.value = parseFloat(volume.value);
+      // Soft limiter using dynamicsCompressor as a safety
+      const comp = audioCtx.createDynamicsCompressor();
+      comp.threshold.value = -8; comp.knee.value = 20; comp.ratio.value = 4; comp.attack.value = 0.003; comp.release.value = 0.15;
+      limiter = comp;
+      masterGain.connect(comp).connect(audioCtx.destination);
+    }
+
+    function setStatus(t) { statusEl.textContent = t; }
+
+    function pluckKarplusStrong(frequency, velocity = 0.8, decaySeconds = 2.2) {
+      ensureAudio();
+      const ctx = audioCtx;
+      const output = ctx.createGain();
+      const env = ctx.createGain(); env.gain.value = 0.0001;
+
+      const delay = ctx.createDelay(1.0);
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';
+      lp.frequency.value = Math.min(8000, frequency * 3);
+      lp.Q.value = 0.2;
+      const fb = ctx.createGain(); fb.gain.value = 0.5 + Math.min(0.48, frequency / 2000);
+
+      // burst noise
+      const noiseBuf = ctx.createBuffer(1, Math.ceil(ctx.sampleRate * 0.02), ctx.sampleRate);
+      const data = noiseBuf.getChannelData(0);
+      for (let i = 0; i < data.length; i++) data[i] = (Math.random() * 2 - 1) * 0.6;
+      const noise = ctx.createBufferSource(); noise.buffer = noiseBuf; noise.start();
+
+      // Subtle pitched component for stability
+      const osc = ctx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = frequency * (1 + (Math.random()-0.5) * 0.002);
+      const oscGain = ctx.createGain(); oscGain.gain.value = 0.06;
+
+      // Delay time per frequency
+      delay.delayTime.value = 1 / frequency;
+
+      // Wire graph
+      noise.connect(env);
+      osc.connect(oscGain).connect(env);
+      env.connect(delay);
+      delay.connect(lp).connect(fb).connect(delay);
+      // Also tap pre-delay a bit for attack transient
+      env.connect(output);
+      delay.connect(output);
+      output.connect(masterGain);
+
+      // Envelope
+      const t0 = ctx.currentTime;
+      const v = clamp(velocity, 0, 1);
+      env.gain.cancelScheduledValues(t0);
+      env.gain.setValueAtTime(0.0001, t0);
+      env.gain.exponentialRampToValueAtTime(0.9 * v, t0 + 0.004);
+      env.gain.exponentialRampToValueAtTime(0.001, t0 + clamp(decaySeconds * (0.7 + (1/frequency)), 0.5, 4.0));
+
+      // Cleanup
+      const stopAt = t0 + decaySeconds + 0.5;
+      osc.start();
+      const cleanup = () => {
+        try { osc.stop(); } catch {}
+        try { noise.stop(); } catch {}
+        [noise, osc, oscGain, env, delay, lp, fb, output].forEach(n => { try { n.disconnect(); } catch {} });
+      };
+      setTimeout(cleanup, (stopAt - ctx.currentTime) * 1000 + 50);
+    }
+
+    function getOpenStringMidis() {
+      const base = Tunings[tuningSelect.value] || Tunings['Standard E'];
+      const capo = parseInt(capoInput.value) || 0;
+      return base.map(m => m + capo);
+    }
+
+    function getNoteFrequency(stringIndex, fret) {
+      const opens = getOpenStringMidis();
+      const midi = opens[stringIndex] + fret;
+      return midiToFreq(midi);
+    }
+
+    function pluckStringAtFret(stringIndex, fret, velocity = 0.9) {
+      const freq = getNoteFrequency(stringIndex, fret);
+      pluckKarplusStrong(freq, velocity);
+      flashActiveDot(stringIndex, fret);
+      recordEvent({ type: 'note', stringIndex, fret, velocity });
+    }
+
+    function strum(direction = 'down', velocity = 0.9) {
+      const chord = Chords[chordSelect.value] || Chords['None'];
+      const order = direction === 'down' ? [0,1,2,3,4,5] : [5,4,3,2,1,0];
+      const perStringMs = parseInt(strumSpeed.value) || 35;
+      let idx = 0;
+      for (const s of order) {
+        const fret = chord[s];
+        if (fret === -1) { idx++; continue; }
+        const delayMs = idx * perStringMs;
+        setTimeout(() => pluckStringAtFret(s, fret, velocity), delayMs);
+        idx++;
+      }
+      recordEvent({ type: 'strum', direction, chord: chordSelect.value, velocity, perStringMs });
+    }
+
+    function muteAllQuick() {
+      ensureAudio();
+      const now = audioCtx.currentTime;
+      const g = masterGain.gain; g.cancelScheduledValues(now); g.setTargetAtTime(0.0001, now, 0.015);
+      setTimeout(() => { g.setTargetAtTime(parseFloat(volume.value), audioCtx.currentTime, 0.06); }, 120);
+    }
+
+    // --- Metronome ---
+    function metroClick(time, accent = false) {
+      const ctx = audioCtx; if (!ctx) return;
+      const osc = ctx.createOscillator(); osc.type = 'square'; osc.frequency.value = accent ? 1700 : 1350;
+      const g = ctx.createGain(); g.gain.setValueAtTime(0.0001, time);
+      g.gain.exponentialRampToValueAtTime(accent ? 0.3 : 0.18, time + 0.001);
+      g.gain.exponentialRampToValueAtTime(0.0001, time + 0.08);
+      osc.connect(g).connect(masterGain);
+      osc.start(time); osc.stop(time + 0.1);
+      setTimeout(() => { try { osc.disconnect(); g.disconnect(); } catch {} }, 200);
+    }
+
+    function startMetronome() {
+      ensureAudio();
+      if (metronomeOn) return;
+      metronomeOn = true;
+      metroNextTime = audioCtx.currentTime + 0.05;
+      metroBeat = 0;
+      scheduleMetronome();
+      btnMetro.textContent = 'Stop';
+    }
+    function stopMetronome() {
+      metronomeOn = false;
+      if (metroSchedulerId) clearInterval(metroSchedulerId);
+      btnMetro.textContent = 'Start';
+    }
+    function scheduleMetronome() {
+      const lookahead = 0.1;
+      const intervalMs = 25;
+      const bps = (parseInt(bpm.value) || 100) / 60;
+      const beatDur = 1 / bps;
+      metroSchedulerId = setInterval(() => {
+        const ct = audioCtx.currentTime;
+        while (metroNextTime < ct + lookahead) {
+          metroClick(metroNextTime, metroBeat % 4 === 0);
+          metroNextTime += beatDur;
+          metroBeat = (metroBeat + 1) % 16;
+        }
+      }, intervalMs);
+    }
+
+    // --- Recording ---
+    let recording = false;
+    let recStartMs = 0;
+    /** @type {{type:string; timeMs:number;} & any}[] */
+    const events = [];
+    function recordEvent(ev) {
+      if (!recording) return;
+      events.push({ ...ev, timeMs: nowMs() - recStartMs });
+    }
+    function startRecording() {
+      events.length = 0;
+      recStartMs = nowMs();
+      recording = true;
+      setStatus('Recording...');
+      btnRec.textContent = '■ Stop';
+      btnRec.classList.add('danger');
+    }
+    function stopRecording() {
+      recording = false;
+      setStatus('Recorded ' + events.length + ' events');
+      btnRec.textContent = '● Rec';
+      btnRec.classList.remove('danger');
+    }
+    let playing = false;
+    let playTimer = null;
+    function playRecording() {
+      if (events.length === 0 || playing) return;
+      ensureAudio();
+      playing = true;
+      const startAt = nowMs();
+      setStatus('Playing...');
+      for (const ev of events) {
+        const dt = Math.max(0, ev.timeMs);
+        setTimeout(() => {
+          if (!playing) return;
+          if (ev.type === 'note') {
+            pluckStringAtFret(ev.stringIndex, ev.fret, ev.velocity ?? 0.9);
+          } else if (ev.type === 'strum') {
+            strum(ev.direction, ev.velocity ?? 0.9);
+          }
+        }, dt);
+      }
+      const total = events.length ? Math.max(...events.map(e => e.timeMs)) + 500 : 0;
+      playTimer = setTimeout(() => {
+        playing = false;
+        setStatus('Playback finished');
+        if (chkLoop.checked) playRecording();
+      }, total);
+    }
+    function stopPlayback() {
+      playing = false;
+      if (playTimer) clearTimeout(playTimer);
+      setStatus('Stopped');
+    }
+
+    // --- Visual feedback ---
+    const activeDot = document.createElement('div');
+    activeDot.className = 'active-dot';
+    activeDot.style.opacity = '0';
+    fretboard.appendChild(activeDot);
+    function flashActiveDot(stringIndex, fret) {
+      const cells = fretboard.querySelectorAll('.cell');
+      // Compute approximate x position in pixels
+      const rect = fretboard.getBoundingClientRect();
+      const totalCols = FRET_COUNT + 1; // excluding header
+      const colWidth = (rect.width - 38) / (totalCols + 1); // +1 for nut spacing
+      const x = (fret + 1.5) * colWidth; // center of fret region
+      activeDot.style.setProperty('--pos', x + 'px');
+      activeDot.style.setProperty('--row', stringIndex);
+      activeDot.style.opacity = '1';
+      setTimeout(() => { activeDot.style.opacity = '0'; }, 120);
+    }
+
+    // --- Keyboard controls ---
+    function updateActiveFret(delta) {
+      activeFretIndex = clamp(activeFretIndex + delta, 0, FRET_COUNT);
+      activeFretEl.textContent = String(activeFretIndex);
+    }
+    updateActiveFret(0);
+    window.addEventListener('keydown', (e) => {
+      if (e.repeat) return;
+      if (e.key === 'ArrowLeft') { e.preventDefault(); updateActiveFret(-1); }
+      else if (e.key === 'ArrowRight') { e.preventDefault(); updateActiveFret(1); }
+      else if (e.key === ' ') { e.preventDefault(); muteAllQuick(); }
+      else if (e.key === 's' || e.key === 'S') { e.preventDefault(); strum('down'); }
+      else if (e.key === 'w' || e.key === 'W') { e.preventDefault(); strum('up'); }
+      else if (e.key === 'm' || e.key === 'M') { e.preventDefault(); metronomeOn ? stopMetronome() : startMetronome(); }
+      else if (/^[1-6]$/.test(e.key)) {
+        const s = parseInt(e.key, 10) - 1; // 1 -> 0
+        pluckStringAtFret(s, activeFretIndex, 0.9);
+      }
+    });
+
+    // --- Wire controls ---
+    strumSpeed.addEventListener('input', () => { strumSpeedVal.textContent = String(parseInt(strumSpeed.value)); });
+    volume.addEventListener('input', () => { ensureAudio(); masterGain.gain.setTargetAtTime(parseFloat(volume.value), audioCtx.currentTime, 0.03); });
+    btnMute.addEventListener('click', muteAllQuick);
+    btnStrumDown.addEventListener('click', () => strum('down'));
+    btnStrumUp.addEventListener('click', () => strum('up'));
+    bpm.addEventListener('input', () => { bpmVal.textContent = String(parseInt(bpm.value)); });
+    btnMetro.addEventListener('click', () => { metronomeOn ? stopMetronome() : startMetronome(); });
+    btnRec.addEventListener('click', () => { recording ? stopRecording() : startRecording(); });
+    btnPlay.addEventListener('click', () => { playing ? stopPlayback() : playRecording(); });
+    btnClearRec.addEventListener('click', () => { events.length = 0; setStatus('Recording cleared'); });
+    chordSelect.addEventListener('change', () => setStatus('Chord: ' + chordSelect.value));
+    tuningSelect.addEventListener('change', () => setStatus('Tuning: ' + tuningSelect.value));
+    capoInput.addEventListener('change', () => { capoInput.value = String(clamp(parseInt(capoInput.value)||0, 0, 12)); setStatus('Capo: ' + capoInput.value); });
+
+    // --- Start overlay ---
+    function startAudioAndHideOverlay() {
+      ensureAudio();
+      // Resume on Safari/iOS
+      audioCtx.resume();
+      overlay.classList.add('hidden');
+      setStatus('Audio ready');
+    }
+    overlay.addEventListener('click', startAudioAndHideOverlay);
+    btnStart.addEventListener('click', (e) => { e.stopPropagation(); startAudioAndHideOverlay(); });
+  </script>
+</body>
+</html>
+
