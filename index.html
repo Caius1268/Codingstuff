@@ -7,17 +7,39 @@
   <meta name="description" content="Advanced AI-powered phishing detection tool. Scan messages, emails, and text content for phishing attempts.">
   <link rel="icon" type="image/svg+xml" href="assets/logo.avif">
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href=" https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
   <link rel="stylesheet" href="normalize.css">
   <link rel="stylesheet" href="style.css">
   <meta name="theme-color" content="#000000">
   <link rel="manifest" href="/manifest.json">
+  <script src="https://accounts.google.com/gsi/client" async defer></script>
+  <link  href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js">
+</script>
   <script>
     if ("serviceWorker" in navigator) {
       navigator.serviceWorker.register("/service-worker.js");
     }
   </script>
+  
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
+  
   <script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
+
+<!-- Splash Screen -->
+<div id="splashScreen" class="splash-screen">
+  <div class="splash-content">
+    <img src="assets/logo.avif" alt="SûrLink Logo" class="splash-logo">
+    <h2 class="splash-title">SûrLink</h2>
+    <p id="splashTagline" class="splash-tagline">Ai-Powered Anti-Phishing Scanner</p>
+    <div class="splash-loader">
+  <span id="loaderText">0%</span>
+</div>
+  </div>
+</div>
 <body>
   <div class="mobile-header" role="banner">
     <button id="menuToggle" class="hamburger" aria-label="Toggle menu" aria-expanded="false" aria-controls="sidebar">☰</button>
@@ -54,13 +76,13 @@
             <span class="nav-text">Statistics</span>
           </button>
           <button class="nav-btn" data-section="quiz" onclick="showSection('quiz')">
-            <span class="nav-icon">🧠</span>
-            <span class="nav-text">Quiz</span>
+            <span class="nav-icon">🕹️</span>
+            <span class="nav-text">Gamified Quiz</span>
           </button>
-          <!--<button class="nav-btn" data-section="status" onclick="showSection('status')">
-            <span class="nav-icon">🔗</span>
-            <span class="nav-text">API Status</span>
-          </button> -->
+<button class="nav-btn" data-section="status" onclick="showSection('status')">
+<span class="nav-icon">🤖</span>
+<span class="nav-text">API Status</span>
+</button> 
           <button class="nav-btn" data-section="feedback" onclick="showSection('feedback')">
             <span class="nav-icon">💬</span>
             <span class="nav-text">Feedback</span>
@@ -72,11 +94,20 @@
 <div class="account-section">
   <h4>Account</h4>
   <div id="userInfo" class="user-info">
-    <p id="userEmail">Not logged in</p>
-    <button id="loginBtn" class="scan-btn outline" onclick="openLoginModal()">Login / Register</button>
+    <div class="user-row" style="display: flex; align-items: center; gap: 10px;">
+      <img id="userPic" src="" alt="Profile" style="display:none; width:32px; height:32px; border-radius:50%;">
+      <p id="userName" style="font-weight:500; margin:0;"></p>
+    </div>
+    <p id="userEmail" style="margin-top:8px;">Not logged in</p>
   </div>
-  <button id="logoutBtn" class="scan-btn outline hidden" onclick="logout()">Logout</button>
+  <hr style="margin: 12px 0; border: none; border-top: 1px solid #475569; opacity: 0.3;">
+  <div class="user-actions">
+    <button id="loginBtn" class="scan-btn outline" onclick="openLoginModal()">Login / Register</button>
+    <button id="logoutBtn" class="scan-btn outline hidden" onclick="logout()">Logout</button>
+  </div>
 </div>
+
+
    
         <!-- Theme Toggle Section -->
         <div class="theme-toggle-section">
@@ -90,6 +121,19 @@
           </div>
         </div>
       </div>
+      
+      <!-- Language Switcher -->
+<div class="language-toggle">
+  <h4>🌐 Language</h4>
+  <select id="languageSelect" onchange="setLanguage(this.value)">
+    <option value="en">🇺🇸 English</option>
+    <option value="fil">🇵🇭 Filipino</option>
+    <option value="es">🇪🇸 Español</option>
+    <option value="fr">🇫🇷 Français</option>
+    <!-- Add more languages -->
+  </select>
+</div>
+      
     </aside>
 
     <!-- Main Content -->
@@ -113,17 +157,27 @@
         </div>
 
         <!-- Progress Bar -->
-        <div id="progressBar" class="progress-bar hidden" role="progressbar" aria-label="Scanning progress">
+                <div id="progressBar" class="progress-bar hidden" role="progressbar" aria-label="Scanning progress">
           <div class="progress-fill"></div>
         </div>
 
         <!-- Input Area -->
         <div class="input-area">
           <div class="image-input-wrapper">
-            <input id="imagePicker" type="file" accept="image/*" aria-label="Select image to extract text" />
-            <label for="imagePicker" class="icon-btn" aria-label="Choose image">
-              <img src="assets/image.webp" alt="Image icon" width="20" height="20">
-            </label>
+            <input id="imagePicker" type="file" accept="image/*" aria-label="Select image to extract text" style="display: none;" />
+            <button id="imageOptionsBtn" class="icon-btn" aria-label="Choose image or camera" onclick="toggleImageOptions()">
+              <i class="fa-regular fa-images" style="font-size: 18px;"></i>
+            </button>
+            <div id="imageOptionsDropdown" class="image-options-dropdown hidden">
+              <button class="dropdown-option" onclick="openCamera()">
+                <span class="option-icon">📷</span>
+                <span class="option-text">Use Camera</span>
+              </button>
+              <button class="dropdown-option" onclick="selectImage()">
+                <span class="option-icon">🖼️</span>
+                <span class="option-text">Select Image</span>
+              </button>
+            </div>
           </div>
           <textarea 
             id="messageInput" 
@@ -148,26 +202,74 @@
         </div>
       </div>
 
-      <!-- Stats (Main) -->
-      <div id="statsMainSection" class="content-section">
-        <div class="content-scroll">
-          <h3 style="margin-bottom:12px;">Scan Statistics</h3>
-          <div class="stats-grid">
-            <div class="stat-item">
-              <span class="stat-number" id="totalScans">0</span>
-              <span class="stat-label">Total Scans</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-number" id="phishingScans">0</span>
-              <span class="stat-label">Phishing Detected</span>
-            </div>
-            <div class="stat-item">
-              <span class="stat-number" id="safeScans">0</span>
-              <span class="stat-label">Safe Messages</span>
+<!-- Stats (Main) -->
+<div id="statsMainSection" class="content-section">
+  <div class="content-scroll">
+    <h3 style="margin-bottom:12px;">Scan Statistics</h3>
+
+    <div class="stats-grid" style="display:grid; grid-template-columns: 1fr 340px; gap:16px; align-items:start;">
+      <!-- Left: scan metrics + chart -->
+      <div class="stats-left" style="display:flex;flex-direction:column;gap:12px;">
+        <div class="stats-grid-cards" style="display:flex;gap:12px;flex-wrap:wrap;">
+          <div class="stat-item" style="flex:1 1 140px;padding:12px;border-radius:12px;background:var(--glass);border:1px solid rgba(139,92,246,0.08);">
+            <div class="stat-number" id="totalScans">0</div>
+            <div class="stat-label">Total Scans</div>
+          </div>
+          <div class="stat-item" style="flex:1 1 140px;padding:12px;border-radius:12px;background:var(--glass);border:1px solid rgba(139,92,246,0.08);">
+            <div class="stat-number" id="phishingScans">0</div>
+            <div class="stat-label">Phishing Detected</div>
+          </div>
+          <div class="stat-item" style="flex:1 1 140px;padding:12px;border-radius:12px;background:var(--glass);border:1px solid rgba(139,92,246,0.08);">
+            <div class="stat-number" id="safeScans">0</div>
+            <div class="stat-label">Safe Messages</div>
+          </div>
+        </div>
+
+        <!-- Chart card -->
+        <div class="chart-card" style="padding:12px;border-radius:12px;background:var(--glass);border:1px solid rgba(139,92,246,0.08); display:flex; gap:12px; align-items:center;">
+          <div style="width:160px; height:160px; position:relative;">
+            <canvas id="statsDoughnut" width="160" height="160" aria-label="Scans breakdown chart" role="img"></canvas>
+          </div>
+          <div style="flex:1;">
+            <div style="font-weight:700; font-size:1rem; color:var(--muted)">Phishing vs Safe</div>
+            <div id="chartLegend" style="margin-top:8px; font-size:0.95rem; color:var(--muted)"></div>
+            <div style="margin-top:12px;">
+              <button id="resetStatsBtn" class="scan-btn outline" style="padding:8px 10px;">Reset Stats</button>
             </div>
           </div>
         </div>
       </div>
+
+      <!-- Player Profile -->
+<aside class="stats-profile">
+  <div class="player-profile">
+    <div id="playerAvatar" class="player-avatar">G</div>
+    <div class="player-info">
+      <div class="player-header">
+        <span id="playerName">Guest</span>
+        <span id="profileLevel" class="quiz-level">Lvl 1</span>
+      </div>
+      <div class="player-xp">
+        <span id="profileXP" class="quiz-xp">XP: 0 / 50</span>
+        <div class="xp-bar"><div id="profileXPbarFill"></div></div>
+      </div>
+      <div class="player-footer">
+        <span id="playerBadge">Novice Learner 🐣</span>
+        <button id="editProfileBtn" class="scan-btn outline">Edit</button>
+      </div>
+    </div>
+  </div>
+  <div class="player-summary">
+    <h4>Player Summary</h4>
+    <p>Best Streak: <strong id="playerBestStreak">0</strong></p>
+    <p>Games Played: <strong id="playerGames">0</strong></p>
+  </div>  
+</aside>
+
+        
+    </div>
+  </div>
+</div>
 
       <!-- Status (Main) -->
       <div id="statusMainSection" class="content-section">
@@ -180,25 +282,76 @@
         </div>
       </div>
 
-      <!-- Quiz (Main) -->
-      <div id="quizMainSection" class="content-section">
-        <div class="content-scroll">
-          <h3 style="margin-bottom:12px;">Phishing Awareness Quiz</h3>
-          <div id="quizContainer" class="quiz-card">
-            <div class="quiz-top">
-              <div id="quizProgress" class="quiz-progress" aria-live="polite"></div>
-              <div id="quizScore" class="quiz-score"></div>
-            </div>
-            <div id="quizQuestion" class="quiz-question"></div>
-            <div id="quizAnswers" class="quiz-answers"></div>
-            <div id="quizFeedback" class="quiz-feedback" aria-live="polite"></div>
-            <div class="quiz-actions">
-              <button id="quizNextBtn" class="scan-btn" disabled>Next</button>
-              <button id="quizRestartBtn" class="scan-btn outline" style="display:none;">Restart</button>
-            </div>
+<!-- Quiz (Main) -->
+<div id="quizMainSection" class="content-section">
+  <div class="content-scroll">
+    <div class="quiz-banner">
+  <h1>🛡️ Cyber Defender</h1>
+  <p>Beat the phishing attacks. Gain XP. Unlock badges.</p>
+</div>
+
+    <!-- STEP 1: WELCOME SCREEN -->
+   <div id="quizWelcome" class="quiz-card">
+  <h2>🎮 Welcome, Agent!</h2>
+  <p>
+    Your mission: Identify phishing threats and secure cyberspace.  
+    Earn <span class="quiz-xp">XP</span>, build streaks, and unlock badges.
+  </p>
+  <div class="quiz-actions" style="justify-content:center; margin-top:18px;">
+    <button id="quizStartBtn" class="scan-btn start-btn">▶️ Start Game</button>
+    
+  </div>
+</div>
+
+    <!-- STEP 2: DIFFICULTY SELECTION (hidden until Start pressed) -->
+<div id="quizDifficulty" class="quiz-card" style="display:none;">
+  <h2>Choose Your Challenge ⚔️</h2>
+  <p style="margin-bottom:14px;">Pick a mode to test your skills:</p>
+  <div class="quiz-mode-grid">
+    <button class="quiz-difficulty" data-mode="easy">🌱 Easy<br><span>Learn the basics</span></button>
+    <button class="quiz-difficulty" data-mode="medium">🔥 Medium<br><span>Ready for more?</span></button>
+    <button class="quiz-difficulty" data-mode="hard">💀 Hard<br><span>For experts only</span></button>
+    <button class="quiz-difficulty" data-mode="endless">♾️ Endless<br><span>Survive as long as you can</span></button>
+  </div>
+</div>
+
+    <!-- STEP 3: QUIZ GAME UI -->
+    <div id="quizContainer" class="quiz-card" style="display:none;">
+      <div class="quiz-top">
+        <div class="quiz-left">
+          <div class="quiz-progress-bar" aria-hidden="true">
+            <div class="quiz-progress-fill" id="quizProgressFill" style="width:0%"></div>
+          </div>
+          <div class="quiz-meta">
+            <span id="quizProgress" class="quiz-progress-text">Question 1</span>
+            <span id="quizScore" class="quiz-score">Score: 0</span>
+            <span id="quizLevel" class="quiz-level">Lvl 0</span>
+<span id="quizXP" class="quiz-xp">XP: 0 / 50</span>
           </div>
         </div>
+
+        <div class="quiz-right">
+          <div id="quizLives" class="quiz-lives" aria-live="polite">❤️❤️❤️</div>
+          <div id="quizStreak">🔥 0 | 🏆 Best: 0</div>
+          <div id="quizTimer" class="quiz-timer" role="status" aria-live="polite">20s</div>
+        </div>
       </div>
+
+      <div id="quizQuestion" class="quiz-question"></div>
+      <div id="quizAnswers" class="quiz-answers"></div>
+      <div id="quizFeedback" class="quiz-feedback" aria-live="polite"></div>
+
+<div class="quiz-actions" style="margin-top:12px;display:flex;gap:8px;justify-content:flex-end;">
+  <button id="quizQuitBtn" class="scan-btn outline">Quit</button>
+  <button id="quizRestartBtn" class="scan-btn outline" style="display:none;">Restart</button>
+</div>
+
+      <!-- Badge (hidden until end) -->
+      <div id="quizBadge" style="display:none;margin-top:12px;font-weight:600;color:#c7b3ff;"></div>
+    </div>
+  </div>
+</div>
+
    <!-- Feedback (Main) -->
 <div id="feedbackMainSection" class="content-section">
   <div class="content-scroll">
@@ -242,13 +395,69 @@
     <input type="email" id="authEmail" placeholder="Email" required>
     <input type="password" id="authPassword" placeholder="Password" required>
 
-    <button class="scan-btn" onclick="handleAuthAction()">Login</button>
-    <p id="authSwitch">
-      Don't have an account? <a href="#" onclick="switchAuthMode(event)">Register here</a>
-    </p>
+        <!-- Google login -->
+    <div id="g_id_onload"
+      data-client_id="1039434473386-fm6bjua9mmpb6umhf6lur1klb806urce.apps.googleusercontent.com"
+      data-auto_prompt="false">
+    </div>
+
+    <div class="g_id_signin" data-type="standard"></div>
+
+        <script>
+      function handleCredentialResponse(response) {
+        const data = parseJwt(response.credential);
+        window.setGoogleUser(data); // <-- Call global function in script.js
+      }
+
+      function parseJwt(token) {
+        let base64Url = token.split('.')[1];
+        let base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/');
+        let jsonPayload = decodeURIComponent(atob(base64).split('').map(function(c) {
+            return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2);
+        }).join(''));
+        return JSON.parse(jsonPayload);
+      }
+
+      window.onload = function () {
+        google.accounts.id.initialize({
+          client_id: "1039434473386-fm6bjua9mmpb6umhf6lur1klb806urce.apps.googleusercontent.com",
+          callback: handleCredentialResponse
+        });
+        google.accounts.id.renderButton(
+          document.querySelector(".g_id_signin"),
+          { theme: "outline", size: "large" }
+        );
+      }
+    </script>
+    
+  <script>
+  window.addEventListener("load", () => {
+    const splash = document.getElementById("splashScreen");
+    setTimeout(() => {
+      splash.classList.add("hide");
+    }, 5000); // Keep splash for 3 seconds
+  });
+</script>
+
+<!-- Crop Modal -->
+<div id="cropModal" class="hidden">
+  <div class="modal-content">
+    <span class="close-btn" onclick="closeCropModal()">✖</span>
+    <div class="crop-container">
+      <img id="cropImage" alt="To crop">
+    </div>
+    <div class="modal-actions">
+      <button class="scan-btn" onclick="cropImage()">Extract Text</button>
+      <button class="scan-btn outline" onclick="closeCropModal()">Cancel</button>
+    </div>
+    <div id="ocrProgress" class="ocr-progress hidden">Extracting...</div>
   </div>
 </div>
   
-  <script src="script.js"></script>
+  <script src="questions.js"></script>
+  <script src="script.js" defer></script>
+  <script src="onboarding.js" defer></script>
+
+ 
 </body>
-</html> 
+</html>
